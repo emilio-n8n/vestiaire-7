@@ -1,0 +1,289 @@
+{
+  "id": "dernier-match",
+  "version": 1,
+  "title": "Le Dernier Match",
+  "subtitle": "La finale",
+  "durationMinutes": 45,
+  "intro": "Bienvenue dans Vestiaire 7.\n\nLe coach a disparu, le vestiaire est verrouillé, et le coup d'envoi de la finale est dans 45 minutes. Votre équipe doit traverser 5 salles pour retrouver le code du trophée.\n\nChaque joueur reçoit un indice différent. Personne ne peut avancer seul : le chat d'équipe est votre seul moyen de partager les indices.",
+  "rules": [
+    "Chaque joueur voit un indice différent.",
+    "Partagez vos indices dans le chat d'équipe.",
+    "Jev vérifie chaque message avant sa publication.",
+    "Le professeur peut lire le chat et intervenir."
+  ],
+  "rooms": [
+    {
+      "id": "vestiaire",
+      "title": "Le vestiaire",
+      "subtitle": "Salle 1 · Les règles d'or",
+      "narrative": "Le coach a disparu. Sur le tableau blanc, trois mots sont entourés : PAS, SECONDES, BALLON.\n\nEn dessous, une phrase : « Le compte est bon, mais lequel ? » La porte est verrouillée par un cadenas à un chiffre.",
+      "questions": [
+        {
+          "id": "v1",
+          "prompt": "Combien de pas maximum peut-on faire avec le ballon en main ?",
+          "options": [
+            "2 pas",
+            "3 pas",
+            "4 pas",
+            "5 pas"
+          ],
+          "correct": 1,
+          "explanation": "3 pas maximum. Au-delà, l'arbitre siffle."
+        },
+        {
+          "id": "v2",
+          "prompt": "Combien de secondes peut-on garder le ballon sans dribbler, passer ou tirer ?",
+          "options": [
+            "2 secondes",
+            "3 secondes",
+            "5 secondes",
+            "10 secondes"
+          ],
+          "correct": 1,
+          "explanation": "3 secondes maximum. Ensuite, il faut dribbler, passer ou tirer."
+        }
+      ],
+      "exitPrompt": "Quel chiffre ouvre le cadenas ? (le nombre de pas et de secondes)",
+      "exitCode": "3",
+      "hint": "Les deux réponses sont identiques : c'est ce chiffre qui ouvre la porte.",
+      "clues": [
+        "Le règlement parle de « 3 pas » maximum.",
+        "Le chrono de possession est de « 3 secondes ».",
+        "Le chiffre du cadenas est le même que celui des pas.",
+        "Le chiffre du cadenas est le même que celui des secondes."
+      ],
+      "success": "Le cadenas clique. Sur le mur, une flèche : « Direction la table de marque. »"
+    },
+    {
+      "id": "table-de-marque",
+      "title": "La table de marque",
+      "subtitle": "Salle 2 · Le chrono bloqué",
+      "narrative": "La table de marque est déserte. Le chrono est bloqué sur 2:00. Un carton jaune traîne sur le bureau.\n\nPour sortir, il faut comprendre ce que signifie cette exclusion.",
+      "questions": [
+        {
+          "id": "t1",
+          "prompt": "Que signifie une exclusion de 2 minutes ?",
+          "options": [
+            "Le joueur est remplacé et son équipe joue à 7",
+            "Le joueur sort et son équipe joue à 6",
+            "Le joueur est disqualifié définitivement",
+            "L'équipe perd un but"
+          ],
+          "correct": 1,
+          "explanation": "Le joueur exclu sort 2 minutes ; son équipe joue à 6."
+        },
+        {
+          "id": "t2",
+          "prompt": "Que se passe-t-il après 3 exclusions pour un même joueur ?",
+          "options": [
+            "Il revient avec un avertissement",
+            "Il est disqualifié",
+            "Il change de poste",
+            "Rien, il continue"
+          ],
+          "correct": 1,
+          "explanation": "Trois exclusions = disqualification."
+        }
+      ],
+      "exitPrompt": "Quel chiffre ouvre le tiroir ? (la durée de l'exclusion, en minutes)",
+      "exitCode": "2",
+      "hint": "Le chrono affiche 2:00. La durée de l'exclusion est écrite dessus.",
+      "clues": [
+        "Une exclusion, c'est 2 minutes hors du terrain.",
+        "Pendant l'exclusion, l'équipe joue à 6.",
+        "Au bout de 3 exclusions, le joueur est disqualifié.",
+        "Le tiroir s'ouvre avec la durée de l'exclusion."
+      ],
+      "success": "Le tiroir s'ouvre : un plan du terrain, avec une zone entourée."
+    },
+    {
+      "id": "terrain",
+      "title": "Le terrain",
+      "subtitle": "Salle 3 · Le plan déchiré",
+      "narrative": "Le plan du terrain est déchiré. Quatre morceaux ont été distribués aux joueurs.\n\nPour le reconstituer, il faut savoir combien de joueurs entrent sur le terrain.",
+      "questions": [
+        {
+          "id": "p1",
+          "prompt": "Combien de joueurs compte une équipe sur le terrain ?",
+          "options": [
+            "5 joueurs",
+            "6 joueurs",
+            "7 joueurs",
+            "8 joueurs"
+          ],
+          "correct": 2,
+          "explanation": "7 joueurs : 6 joueurs de champ + 1 gardien."
+        },
+        {
+          "id": "p2",
+          "prompt": "Combien de joueurs de champ (hors gardien) ?",
+          "options": [
+            "5 joueurs",
+            "6 joueurs",
+            "7 joueurs",
+            "8 joueurs"
+          ],
+          "correct": 1,
+          "explanation": "6 joueurs de champ + le gardien = 7."
+        }
+      ],
+      "exitPrompt": "Quel chiffre ouvre la trappe ? (le nombre total de joueurs)",
+      "exitCode": "7",
+      "hint": "Additionne les joueurs de champ et le gardien : 6 + 1.",
+      "clues": [
+        "Une équipe aligne 1 gardien.",
+        "Il y a 6 joueurs de champ.",
+        "Le gardien compte dans les 7.",
+        "Le pivot, l'ailier, l'arrière et le demi-centre sont des joueurs de champ."
+      ],
+      "success": "La trappe s'ouvre. Une ligne de craie indique : « 6 mètres »."
+    },
+    {
+      "id": "zone",
+      "title": "La zone",
+      "subtitle": "Salle 4 · Les lignes effacées",
+      "narrative": "Les lignes du terrain ont été effacées. Le gardien tourne en rond.\n\nRetrouve la distance qui délimite sa zone.",
+      "questions": [
+        {
+          "id": "z1",
+          "prompt": "À quelle distance du but se trouve la ligne de zone du gardien ?",
+          "options": [
+            "4 mètres",
+            "6 mètres",
+            "7 mètres",
+            "9 mètres"
+          ],
+          "correct": 1,
+          "explanation": "La zone du gardien est à 6 mètres du but."
+        },
+        {
+          "id": "z2",
+          "prompt": "Que peut faire le gardien dans sa zone ?",
+          "options": [
+            "Il peut toucher le ballon avec tout le corps",
+            "Il doit rester sur sa ligne",
+            "Il peut sortir avec le ballon",
+            "Il ne peut pas utiliser ses pieds"
+          ],
+          "correct": 0,
+          "explanation": "Dans sa zone, le gardien peut utiliser tout son corps pour arrêter le ballon."
+        }
+      ],
+      "exitPrompt": "Quel chiffre ouvre la porte de la zone ? (la distance en mètres)",
+      "exitCode": "6",
+      "hint": "C'est la distance entre le but et la ligne de zone : 6 mètres.",
+      "clues": [
+        "La zone du gardien mesure 6 mètres depuis le but.",
+        "Un joueur de champ ne peut pas entrer dans la zone.",
+        "Le gardien peut toucher le ballon avec tout son corps dans sa zone.",
+        "La ligne de zone est à 6 mètres, pas à 7."
+      ],
+      "success": "La porte s'ouvre. Un sifflet tombe : « Dernier arrêt : le coup franc. »"
+    },
+    {
+      "id": "coup-franc",
+      "title": "Le coup franc",
+      "subtitle": "Salle 5 · Le dernier tir",
+      "narrative": "Dernière salle. Un coup franc est sifflé à 9 mètres. Le trophée est derrière la porte.\n\nLe coach a laissé un dernier message : « La vraie force, c'est l'équipe. »",
+      "questions": [
+        {
+          "id": "c1",
+          "prompt": "À quelle distance se tire un coup franc ?",
+          "options": [
+            "6 mètres",
+            "7 mètres",
+            "9 mètres",
+            "11 mètres"
+          ],
+          "correct": 2,
+          "explanation": "Le coup franc se tire à 9 mètres du but."
+        },
+        {
+          "id": "c2",
+          "prompt": "Quelle valeur est la plus importante pour gagner ensemble ?",
+          "options": [
+            "La vitesse",
+            "Le respect et la solidarité",
+            "La force physique",
+            "Le hasard"
+          ],
+          "correct": 1,
+          "explanation": "Le respect, la solidarité et l'entraide font gagner une équipe."
+        }
+      ],
+      "exitPrompt": "Quel chiffre ouvre la porte du trophée ? (la distance du coup franc)",
+      "exitCode": "9",
+      "hint": "C'est la distance du coup franc : 9 mètres.",
+      "clues": [
+        "Le coup franc se tire à 9 mètres.",
+        "Le jet de 7 mètres, lui, se tire à 7 mètres.",
+        "Le coach a écrit : « La vraie force, c'est l'équipe. »",
+        "Le dernier chiffre est le plus grand des cinq."
+      ],
+      "success": "La porte s'ouvre sur le trophée. Il ne reste plus qu'à assembler les cinq chiffres."
+    }
+  ],
+  "final": {
+    "prompt": "Entre les cinq chiffres dans l'ordre des salles : vestiaire, table de marque, terrain, zone, coup franc.",
+    "code": "32769",
+    "success": "Le trophée s'ouvre. Le coach apparaît : « Vous avez gagné ensemble. »"
+  },
+  "finalQuizIntro": "Réponds seul aux 5 questions. Ce n'est pas une note d'équipe : c'est ton bilan individuel.",
+  "finalQuiz": [
+    {
+      "id": "f1",
+      "prompt": "Combien de pas maximum peut-on faire avec le ballon en main ?",
+      "options": [
+        "2 pas",
+        "3 pas",
+        "4 pas"
+      ],
+      "correct": 1,
+      "explanation": "3 pas maximum."
+    },
+    {
+      "id": "f2",
+      "prompt": "Que signifie une exclusion de 2 minutes ?",
+      "options": [
+        "Le joueur sort et son équipe joue à 6",
+        "Le joueur est remplacé",
+        "L'équipe perd un but"
+      ],
+      "correct": 0,
+      "explanation": "Le joueur sort 2 minutes ; l'équipe joue à 6."
+    },
+    {
+      "id": "f3",
+      "prompt": "Combien de joueurs sur le terrain par équipe ?",
+      "options": [
+        "6 joueurs",
+        "7 joueurs",
+        "8 joueurs"
+      ],
+      "correct": 1,
+      "explanation": "7 joueurs, gardien compris."
+    },
+    {
+      "id": "f4",
+      "prompt": "À quelle distance se trouve la zone du gardien ?",
+      "options": [
+        "6 mètres",
+        "7 mètres",
+        "9 mètres"
+      ],
+      "correct": 0,
+      "explanation": "6 mètres."
+    },
+    {
+      "id": "f5",
+      "prompt": "À quelle distance se tire un coup franc ?",
+      "options": [
+        "7 mètres",
+        "9 mètres",
+        "11 mètres"
+      ],
+      "correct": 1,
+      "explanation": "9 mètres."
+    }
+  ]
+}
