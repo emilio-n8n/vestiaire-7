@@ -12,6 +12,52 @@ export interface PublicQuestion {
   explanation: string | null;
 }
 
+export interface ResearchResource {
+  title: string;
+  url?: string;
+  excerpt?: string;
+}
+
+export interface ResearchVerdict {
+  approved: boolean;
+  score: number;
+  confidence: number;
+  reasons: string[];
+  raw?: unknown;
+}
+
+export interface ResearchSubmission {
+  id: string;
+  text: string;
+  sources: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  verdict: ResearchVerdict | null;
+  submittedAt: number | null;
+  validatedAt: number | null;
+  playerName: string;
+}
+
+export interface ResearchState {
+  required: boolean;
+  prompt: string;
+  instructions: string;
+  minWords: number;
+  maxWords: number;
+  sourcesRequired: number;
+  resources: ResearchResource[];
+  submission: ResearchSubmission | null;
+}
+
+export interface FocusState {
+  required: boolean;
+  active: boolean;
+  ready: string[];
+  total: number;
+  lostBy: string | null;
+  lostAt: number | null;
+}
+
 export interface PublicRoom {
   index: number;
   id: string;
@@ -21,9 +67,13 @@ export interface PublicRoom {
   questions: PublicQuestion[];
   exitPrompt: string;
   allQuestionsCorrect: boolean;
+  exitUnlocked: boolean;
   hint: string | null;
   clues: string[];
   attempts: number;
+  lock: 'focus' | 'open';
+  research: ResearchState | null;
+  focus: FocusState | null;
 }
 
 export interface PlayerMessage {
@@ -55,6 +105,10 @@ export interface PlayerState {
     durationMinutes: number;
     intro: string;
     rules: string[];
+    sessionCount: number;
+    sessionTitles: string[];
+    session: number;
+    sessionTitle: string;
   };
   team: {
     id: string;
@@ -99,6 +153,7 @@ export interface PlayerState {
     questions: QuizQuestionState[];
     score: number | null;
     finished: boolean;
+    focus: FocusState;
   };
 }
 
@@ -161,7 +216,46 @@ export interface AdminTeam {
     attempts: number;
     hintUsed: boolean;
     correctQuestions: string[];
+    researchStatus: string | null;
   }>;
+}
+
+export interface AdminResearch {
+  id: string;
+  teamId: string;
+  teamName: string;
+  roomId: string;
+  roomTitle: string;
+  playerId: string | null;
+  playerName: string;
+  text: string;
+  sources: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  verdict: ResearchVerdict | null;
+  submittedAt: number;
+  validatedAt: number | null;
+}
+
+export interface AdminFocus {
+  teamId: string;
+  roomId: string;
+  roomTitle: string;
+  active: boolean;
+  ready: string[];
+  total: number;
+  lostBy: string | null;
+  lostAt: number | null;
+}
+
+export interface FocusEvent {
+  id: string;
+  teamId: string;
+  teamName: string;
+  playerName: string;
+  roomId: string;
+  roomTitle: string;
+  at: number;
 }
 
 export interface AdminState {
@@ -181,7 +275,9 @@ export interface AdminState {
       title: string;
       subtitle: string;
       durationMinutes: number;
-      rooms: Array<{ id: string; title: string; subtitle: string; exitCode: string }>;
+      sessionCount: number;
+      sessionTitles: string[];
+      rooms: Array<{ id: string; title: string; subtitle: string; exitCode: string; session: number; lock: string }>;
       finalCode: string;
       finalQuiz: Array<{
         id: string;
@@ -194,6 +290,9 @@ export interface AdminState {
   };
   teams: AdminTeam[];
   messages: AdminMessage[];
+  research: AdminResearch[];
+  focus: AdminFocus[];
+  focusEvents: FocusEvent[];
   reports: Array<{
     id: string;
     messageId: string;
@@ -295,6 +394,8 @@ export interface PlayerToServerEvents {
   'player:message': (payload: { body: string; clientId: string }) => void;
   'player:quizAnswer': (payload: { questionId: string; option: number }) => void;
   'player:report': (payload: { messageId: string }) => void;
+  'player:research': (payload: { roomId: string; text: string; sources: string[] }) => void;
+  'player:focus': (payload: { roomId: string; state: 'start' | 'heartbeat' | 'lost' }) => void;
 }
 
 export interface ServerToPlayerEvents {
@@ -304,6 +405,7 @@ export interface ServerToPlayerEvents {
   'message:blocked': (payload: { clientId: string; reason: string; category: string }) => void;
   'message:pending': (payload: { clientId: string; body: string; createdAt: number }) => void;
   toast: (payload: { type: 'success' | 'error' | 'info'; message: string }) => void;
+  'focus:lost': (payload: { roomId: string; playerName: string; at: number }) => void;
   'session:released': (payload: { message: string }) => void;
   'game:deleted': () => void;
 }

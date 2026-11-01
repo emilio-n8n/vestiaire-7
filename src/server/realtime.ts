@@ -17,19 +17,24 @@ import {
   getTeams,
   insertPendingMessage,
   findMessageByClientId,
+  logEvent,
   reportMessage,
+  resetRoomProgress,
   startTeam,
   submitAnswer,
   submitExitCode,
   submitFinalCode,
   submitQuizAnswer,
+  submitResearch,
   touchPlayer,
   updateMessageModeration,
   useHint,
 } from './game.js';
+import { focus } from './focus.js';
 import { logger } from './logger.js';
 import { moderateMessage } from './moderation/index.js';
 import { presence } from './presence.js';
+import { scenarioForGame } from './scenario.js';
 import { normalizeText, now, safeEqual, sha256 } from './util.js';
 
 interface SocketData {
@@ -172,6 +177,7 @@ export function initRealtime(httpServer: HttpServer): IO {
           payload.roomId,
           payload.questionId,
           Number(payload.option),
+          focus.isActive(teamId, payload.roomId),
         );
         broadcastGameStates(gameId);
         broadcastAdminState(gameId);
@@ -195,7 +201,14 @@ export function initRealtime(httpServer: HttpServer): IO {
         if (!payload || typeof payload.roomId !== 'string' || typeof payload.code !== 'string') {
           throw new Error('Code invalide.');
         }
-        const result = submitExitCode(gameId, teamId, playerId, payload.roomId, payload.code);
+        const result = submitExitCode(
+          gameId,
+          teamId,
+          playerId,
+          payload.roomId,
+          payload.code,
+          focus.isActive(teamId, payload.roomId),
+        );
         broadcastGameStates(gameId);
         broadcastAdminState(gameId);
         if (result.correct) {
@@ -256,13 +269,19 @@ export function initRealtime(httpServer: HttpServer): IO {
     socket.on('player:quizAnswer', (payload) => {
       try {
         if (!payload || typeof payload.questionId !== 'string') throw new Error('Réponse invalide.');
-        const result = submitQuizAnswer(gameId, playerId, payload.questionId, Number(payload.option));
+        const result = submitQuizAnswer(
+          gameId,
+          playerId,
+          payload.questionId,
+          Number(payload.option),
+          focus.isActive(`quiz:${playerId}`, 'quiz'),
+        );
         emitPlayerState(playerId);
         broadcastAdminState(gameId);
         socket.emit('toast', {
           type: result.correct ? 'success' : 'info',
           message: result.finished
-            ? `Quiz terminé : ${result.score}/${5}.`
+            ? `Quiz terminé : ${result.score}/${result.total}.`
             : result.correct
               ? 'Bonne réponse !'
               : 'Pas tout à fait. La correction s’affiche.',
@@ -283,9 +302,90 @@ export function initRealtime(httpServer: HttpServer): IO {
       }
     });
 
+    socket.on('player:research', (payload) => {
+      if (
+        !payload ||
+        typeof payload.roomId !== 'string' ||
+        typeof payload.text !== 'string' ||
+        !Array.isArray(payload.sources)
+      ) {
+        emitError(socket, new Error('Recherche invalide.'));
+        return;
+      }
+      const sources = payload.sources.filter((source): source is string => typeof source === 'string');
+      void (async () => {
+        try {
+          await submitResearch(gameId, teamId, playerId, payload.roomId, payload.text, sources);
+          broadcastGameStates(gameId);
+          broadcastAdminState(gameId);
+          socket.emit('toast', {
+            type: 'info',
+            message: 'Recherche envoyée à Jev. La réponse arrive dans un instant.',
+          });
+        } catch (error) {
+          emitError(socket, error);
+        }
+      })();
+    });
+
+    socket.on('player:focus', (payload) => {
+      try {
+        if (
+          !payload ||
+          typeof payload.roomId !== 'string' ||
+          !['start', 'heartbeat', 'lost'].includes(payload.state)
+        ) {
+          throw new Error('Focus invalide.');
+        }
+        if (payload.state === 'heartbeat') {
+          focus.heartbeat(playerId);
+          return;
+        }
+        if (payload.state === 'lost') {
+          handleFocusLost(playerId, gameId, teamId);
+          return;
+        }
+
+        const game = getGame(gameId);
+        const team = getTeam(teamId);
+        const player = getPlayer(playerId);
+        if (!game || !team || !player) throw new Error('Partie inconnue.');
+
+        if (payload.roomId === 'quiz') {
+          if (!team.finished_at) throw new Error('Le quiz n’est pas encore disponible.');
+          if (player.quiz_finished_at) throw new Error('Ton quiz est déjà terminé.');
+          focus.start(playerId, player.name, `quiz:${playerId}`, 'quiz', [playerId]);
+          emitPlayerState(playerId);
+          socket.emit('toast', { type: 'info', message: 'Quiz verrouillé : reste sur l’écran.' });
+          return;
+        }
+
+        if (game.status !== 'live') throw new Error('La partie n’est pas en cours.');
+        const scenario = scenarioForGame(game.scenario_json);
+        const room = scenario.rooms[team.current_room];
+        if (!room || room.id !== payload.roomId) throw new Error('Cette salle n’est plus la salle actuelle.');
+        if (room.lock !== 'focus') throw new Error('Cette salle n’est pas verrouillée.');
+        const activeIds = getTeamPlayers(teamId)
+          .filter((item) => item.status === 'active')
+          .map((item) => item.id);
+        const snapshot = focus.start(playerId, player.name, teamId, room.id, activeIds);
+        broadcastGameStates(gameId);
+        broadcastAdminState(gameId);
+        socket.emit('toast', {
+          type: snapshot.active ? 'success' : 'info',
+          message: snapshot.active
+            ? 'Salle verrouillée active. À vous de jouer.'
+            : 'Prêt. En attente des autres joueurs.',
+        });
+      } catch (error) {
+        emitError(socket, error);
+      }
+    });
+
     socket.on('disconnect', () => {
       presence.disconnect(playerId, socket.id);
       touchPlayer(playerId);
+      handleFocusLost(playerId, gameId, teamId);
     });
   });
 
@@ -294,7 +394,72 @@ export function initRealtime(httpServer: HttpServer): IO {
     broadcastAdminState(gameId);
   });
 
+  const staleInterval = setInterval(() => {
+    for (const lost of focus.checkStale(15_000)) {
+      if (lost.roomId === 'quiz') {
+        const player = getPlayer(lost.playerId);
+        if (!player) continue;
+        logEvent(player.game_id, player.team_id, player.id, 'focus.lost', {
+          roomId: lost.roomId,
+          playerName: lost.playerName,
+        });
+        emitPlayerState(player.id);
+        io?.to(`player:${player.id}`).emit('toast', {
+          type: 'error',
+          message: 'Réponse annulée : tu as quitté l’écran. Reste sur l’écran pour le quiz.',
+        });
+        continue;
+      }
+      const team = getTeam(lost.teamId);
+      if (!team) continue;
+      logEvent(team.game_id, lost.teamId, lost.playerId, 'focus.lost', {
+        roomId: lost.roomId,
+        playerName: lost.playerName,
+      });
+      if (lost.wasActive) {
+        resetRoomProgress(team.game_id, lost.teamId, lost.roomId, lost.playerName);
+        broadcastGameStates(team.game_id);
+        broadcastAdminState(team.game_id);
+        io?.to(`team:${lost.teamId}`).emit('focus:lost', {
+          roomId: lost.roomId,
+          playerName: lost.playerName,
+          at: now(),
+        });
+      }
+    }
+  }, 5_000);
+  staleInterval.unref();
+
   return io;
+}
+
+function handleFocusLost(playerId: string, gameId: string, teamId: string): void {
+  const lost = focus.lost(playerId);
+  if (!lost) return;
+  logEvent(gameId, teamId, playerId, 'focus.lost', {
+    roomId: lost.roomId,
+    playerName: lost.playerName,
+  });
+  if (lost.roomId === 'quiz') {
+    emitPlayerState(playerId);
+    io?.to(`player:${playerId}`).emit('toast', {
+      type: 'error',
+      message: 'Réponse annulée : tu as quitté l’écran. Reste sur l’écran pour le quiz.',
+    });
+    return;
+  }
+  if (lost.wasActive) {
+    resetRoomProgress(gameId, teamId, lost.roomId, lost.playerName);
+  }
+  broadcastGameStates(gameId);
+  broadcastAdminState(gameId);
+  if (lost.wasActive) {
+    io?.to(`team:${teamId}`).emit('focus:lost', {
+      roomId: lost.roomId,
+      playerName: lost.playerName,
+      at: now(),
+    });
+  }
 }
 
 function handlePlayerMessage(

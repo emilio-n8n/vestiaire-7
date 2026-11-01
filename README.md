@@ -95,16 +95,18 @@ Le format accepte `;`, `,` ou une tabulation. Tu peux charger un exemple, corrig
 4. **Ouvrir le salon** pour autoriser les connexions.
 5. Les élèves ouvrent le lien, entrent le code, cliquent leur prénom.
 6. Une équipe ne peut entrer que si **tous ses joueurs actifs sont connectés**. Si un élève est absent, marque-le absent dans le dashboard : l’effectif attendu diminue.
-7. **Lancer la partie** quand les équipes sont prêtes. Tu peux ensuite mettre en pause, reprendre, envoyer un indice, écrire un message de coach ou terminer.
-8. En fin de session : **Résultats**, quiz individuels, messages d’entraide, export CSV.
+7. **Lancer la partie** quand les équipes sont prêtes. Tu peux ensuite mettre en pause, reprendre, envoyer un indice, écrire un message de coach ou terminer. Entre deux séances, utilise **Mettre en pause** : le jeu reprend avec le même lien et les mêmes équipes.
+8. Pendant la partie, ouvre **Missions** pour valider ou renvoyer les recherches, voir les sources et les sorties d’écran. En fin de session : **Résultats**, quiz individuels, recherches validées, messages d’entraide, export CSV.
 
 ### Le jeu
 
-- Scénario **Le Dernier Match** : 5 salles, 2 questions par salle, un code de sortie par salle, un code final.
+- Scénario **Le Dernier Match** : **10 salles sur 3 séances** (135 minutes), un code de sortie par salle, un code final à 10 chiffres.
+- **5 salles automatiques verrouillées** : règles, sanctions, postes, zone, coup franc. Tous les joueurs actifs doivent cliquer sur « Je suis prêt » et rester sur l’écran. Si un joueur quitte l’écran, la salle se réinitialise et le professeur voit la sortie dans **Missions**.
+- **5 salles de recherche web** : histoire, légendes, club local, analyse d’un match, production finale. Les élèves citent 2 sources (3 pour la finale), écrivent 120 à 300 mots (200 à 450 pour le pitch) et **Jev valide** la consigne, les sources et la synthèse. Le professeur peut valider, renvoyer ou commenter dans **Missions**.
 - Chaque joueur reçoit **un indice privé différent**. Sans le chat, l’équipe ne peut pas avancer.
 - Une salle rapporte 100 points ; un coup de pouce coûte 20 points, une mauvaise réponse 5 points. Le code final rapporte 50 points.
-- Après le trophée, chaque élève répond à un **quiz individuel de 5 questions**. Le professeur voit les scores dans **Résultats** et dans le CSV.
-- Le contenu est dans `scenarios/dernier-match.json` ; tu peux ajuster les questions, les indices et les explications.
+- Après le trophée, chaque élève répond à un **quiz individuel de 10 questions**, en mode verrouillé : rester sur l’écran, sinon la réponse en cours est annulée. Le professeur voit les scores dans **Résultats** et dans le CSV.
+- Le contenu est dans `scenarios/dernier-match.json` ; tu peux ajuster les questions, les indices, les sources et les explications.
 
 ### Le chat et Jev
 
@@ -124,7 +126,7 @@ Le chat est **visible par le professeur** et annoncé aux élèves. Les élèves
 
 - Pas de compte élève, pas d’email, pas de téléphone : uniquement un prénom/pseudo fourni par le professeur.
 - Le chat est visible par le professeur (protection des mineurs) et les élèves en sont informés.
-- Les messages envoyés à Jev contiennent le texte, les 3 messages précédents, le prénom, le nom de l’équipe et la tranche d’âge. Pas d’adresse IP, pas de nom complet.
+- Les messages du chat envoyés à Jev contiennent le texte, les 3 messages précédents, le prénom, le nom de l’équipe et la tranche d’âge. Les recherches envoyées à Jev contiennent la consigne, le texte, les sources et le prénom. Pas d’adresse IP, pas de nom complet.
 - Les données sont stockées dans `data/vestiaire.db` (SQLite). Pense à sauvegarder ce fichier.
 - Suppression automatique des parties après **30 jours** (`RETENTION_DAYS`). Tu peux aussi supprimer une partie depuis le dashboard.
 - Aucune donnée ne part vers Supabase ou un autre backend cloud. Seul Jev (OpenCode Zen) reçoit les messages à modérer, et uniquement si une clé est configurée.
@@ -153,7 +155,7 @@ src/
   client/        React, design system, pages élève et admin
   server/        Express, Socket.IO, SQLite, jeu, modération
   shared/        types, schéma de scénario, sas d’équipe
-scenarios/       contenu pédagogique (5 salles + quiz individuel)
+scenarios/       contenu pédagogique (10 salles + quiz individuel)
 scripts/         start/demo, simulation, vérification Jev
 tests/           tests unitaires
 start.sh         la commande unique pour le Mac mini
@@ -191,5 +193,7 @@ Les logs du script sont dans `$TMPDIR/vestiaire-7/` (`server.log`, `tunnel.log`)
 
 - Le tunnel `trycloudflare` change d’URL à chaque lancement. Un tunnel nommé avec domaine stable est possible.
 - Le « bilan de cohésion » est représenté par les **messages d’entraide** détectés par Jev et la participation visible dans les résultats. Une analyse de transcript plus poussée (quatre indicateurs) peut être ajoutée ensuite.
+- Le mode verrouillé détecte le changement d’onglet, le passage en arrière-plan et la perte de focus de la fenêtre. Il ne peut pas empêcher un élève d’utiliser un **second appareil** ; le professeur voit les sorties d’écran et garde la main.
+- La validation Jev est probabiliste : elle vérifie la structure, les sources et la synthèse, pas la vérité de chaque information locale. Le professeur peut toujours valider ou renvoyer une recherche.
 - Le contenu est en français et calibré pour des élèves de 4e. Il se modifie dans le fichier de scénario.
 - Une seule instance Node et un seul fichier SQLite : parfait pour une classe, pas pour un déploiement multi-établissement sans base partagée.

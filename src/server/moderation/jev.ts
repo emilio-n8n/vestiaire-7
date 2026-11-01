@@ -14,24 +14,36 @@ export interface JevVerdict {
   model: string;
 }
 
+export interface JevAnswer {
+  type: string;
+  noul?: number;
+  choice?: string;
+  confidence?: number;
+  probabilities?: Record<string, number>;
+  score?: number;
+  legend?: Record<string, string>;
+}
+
+export interface JevResponse {
+  model: string;
+  answers: Record<string, JevAnswer>;
+  usage: { input_tokens?: number; output_tokens?: number; cost?: number } | null;
+  latencyMs: number;
+}
+
+const answerSchema = z.object({
+  type: z.string(),
+  noul: z.number().optional(),
+  choice: z.string().optional(),
+  confidence: z.number().optional(),
+  probabilities: z.record(z.string(), z.number()).optional(),
+  score: z.number().optional(),
+  legend: z.record(z.string(), z.string()).optional(),
+});
+
 const responseSchema = z.object({
   model: z.string().optional(),
-  answers: z.object({
-    respect: z.object({ type: z.literal('noul'), noul: z.number() }),
-    categorie: z.object({
-      type: z.literal('choice'),
-      choice: z.string(),
-      confidence: z.number(),
-      probabilities: z.record(z.string(), z.number()).optional(),
-    }),
-    gravite: z.object({
-      type: z.literal('score'),
-      score: z.number(),
-      confidence: z.number(),
-      legend: z.record(z.string(), z.string()).optional(),
-    }),
-    entraide: z.object({ type: z.literal('noul'), noul: z.number() }).optional(),
-  }),
+  answers: z.record(z.string(), answerSchema),
   usage: z
     .object({
       input_tokens: z.number().optional(),
@@ -54,50 +66,12 @@ export interface JevContext {
   recentMessages: string[];
 }
 
-export async function analyzeWithJev(message: string, context: JevContext): Promise<JevVerdict> {
+export async function callJev(
+  state: string,
+  questions: Record<string, unknown>,
+): Promise<JevResponse> {
   if (!config.jev.enabled) throw new JevError('Jev est désactivé.');
   if (!config.jev.apiKey) throw new JevError('JEV_API_KEY absent.');
-
-  const state = JSON.stringify({
-    contexte:
-      "Chat d'équipe d'élèves de 4e (13-14 ans) pendant un escape game de handball. Le professeur peut lire le chat.",
-    equipe: context.teamName,
-    auteur: context.playerName,
-    messages_recents: context.recentMessages.slice(-3),
-    message,
-  });
-
-  const body = {
-    model: config.jev.model,
-    state,
-    questions: {
-      respect: {
-        type: 'noul',
-        instructions:
-          'Le message est-il respectueux, sans insulte, moquerie, menace, harcèlement ou discrimination ?',
-      },
-      categorie: {
-        type: 'choice',
-        instructions: 'Quelle catégorie décrit le mieux ce message ?',
-        criteria: {
-          ok: 'Respectueux et coopératif',
-          impoli: 'Impoli ou moqueur',
-          harcelement: 'Harcèlement ou exclusion',
-          menace: 'Menace ou violence',
-          donnees: 'Donnée personnelle (téléphone, adresse, email, réseau social)',
-        },
-      },
-      gravite: {
-        type: 'score',
-        instructions: 'Quelle est la gravité du problème ?',
-        criteria: ['Aucun problème', 'Impoli', 'Harcèlement', 'Menace grave'],
-      },
-      entraide: {
-        type: 'noul',
-        instructions: 'Le message aide, encourage ou félicite un coéquipier.',
-      },
-    },
-  };
 
   const started = Date.now();
   let response: Response;
@@ -108,7 +82,11 @@ export async function analyzeWithJev(message: string, context: JevContext): Prom
         Authorization: `Bearer ${config.jev.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: config.jev.model,
+        state,
+        questions,
+      }),
       signal: AbortSignal.timeout(config.jev.timeoutMs),
     });
   } catch (error) {
@@ -133,17 +111,79 @@ export async function analyzeWithJev(message: string, context: JevContext): Prom
     throw new JevError('Réponse Jev au format inattendu.');
   }
 
-  const data = parsed.data;
   return {
-    respect: data.answers.respect.noul,
-    category: data.answers.categorie.choice,
-    categoryConfidence: data.answers.categorie.confidence,
-    probabilities: data.answers.categorie.probabilities ?? {},
-    severity: data.answers.gravite.score,
-    severityConfidence: data.answers.gravite.confidence,
-    entraide: data.answers.entraide?.noul ?? null,
-    usage: data.usage ?? null,
+    model: parsed.data.model ?? config.jev.model,
+    answers: parsed.data.answers,
+    usage: parsed.data.usage ?? null,
     latencyMs: Date.now() - started,
-    model: data.model ?? config.jev.model,
+  };
+}
+
+export async function analyzeWithJev(message: string, context: JevContext): Promise<JevVerdict> {
+  const state = JSON.stringify({
+    contexte:
+      "Chat d'équipe d'élèves de 4e (13-14 ans) pendant un escape game de handball. Le professeur peut lire le chat.",
+    equipe: context.teamName,
+    auteur: context.playerName,
+    messages_recents: context.recentMessages.slice(-3),
+    message,
+  });
+
+  const result = await callJev(state, {
+    respect: {
+      type: 'noul',
+      instructions:
+        'Le message est-il respectueux, sans insulte, moquerie, menace, harcèlement ou discrimination ?',
+    },
+    categorie: {
+      type: 'choice',
+      instructions: 'Quelle catégorie décrit le mieux ce message ?',
+      criteria: {
+        ok: 'Respectueux et coopératif',
+        impoli: 'Impoli ou moqueur',
+        harcelement: 'Harcèlement ou exclusion',
+        menace: 'Menace ou violence',
+        donnees: 'Donnée personnelle (téléphone, adresse, email, réseau social)',
+      },
+    },
+    gravite: {
+      type: 'score',
+      instructions: 'Quelle est la gravité du problème ?',
+      criteria: ['Aucun problème', 'Impoli', 'Harcèlement', 'Menace grave'],
+    },
+    entraide: {
+      type: 'noul',
+      instructions: 'Le message aide, encourage ou félicite un coéquipier.',
+    },
+  });
+
+  const respect = result.answers.respect;
+  const categorie = result.answers.categorie;
+  const gravite = result.answers.gravite;
+  const entraide = result.answers.entraide;
+  if (
+    !respect ||
+    typeof respect.noul !== 'number' ||
+    !categorie ||
+    typeof categorie.choice !== 'string' ||
+    typeof categorie.confidence !== 'number' ||
+    !gravite ||
+    typeof gravite.score !== 'number' ||
+    typeof gravite.confidence !== 'number'
+  ) {
+    throw new JevError('Réponse Jev incomplète pour le chat.');
+  }
+
+  return {
+    respect: respect.noul,
+    category: categorie.choice,
+    categoryConfidence: categorie.confidence,
+    probabilities: categorie.probabilities ?? {},
+    severity: gravite.score,
+    severityConfidence: gravite.confidence,
+    entraide: typeof entraide?.noul === 'number' ? entraide.noul : null,
+    usage: result.usage,
+    latencyMs: result.latencyMs,
+    model: result.model,
   };
 }

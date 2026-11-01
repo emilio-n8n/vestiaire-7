@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -19,7 +20,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { PlayerMessage, PlayerState, PublicQuestion } from '../shared/types';
+import type { FocusState, PlayerMessage, PlayerState, PublicQuestion } from '../shared/types';
 import type { BlockedMessage, PendingMessage } from './hooks';
 import type { PlayerSocket } from './socket';
 import {
@@ -31,6 +32,7 @@ import {
   ConnectionDot,
   Divider,
   IconButton,
+  Input,
   Logo,
   Modal,
   Progress,
@@ -53,6 +55,97 @@ function useElapsed(state: PlayerState): number {
   }, []);
   const live = state.game.status === 'live' && Boolean(state.team.startedAt) && !state.team.finishedAt;
   return state.team.elapsedMs + (live ? Math.max(0, Date.now() - state.serverNow) : 0);
+}
+
+function useFocusGuard(socket: PlayerSocket | null, roomId: string, enabled: boolean, active: boolean) {
+  useEffect(() => {
+    if (!socket || !enabled || !active) return;
+    const lost = () => socket.emit('player:focus', { roomId, state: 'lost' });
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') lost();
+    };
+    const onBlur = () => lost();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    const interval = window.setInterval(() => {
+      socket.emit('player:focus', { roomId, state: 'heartbeat' });
+    }, 5000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      window.clearInterval(interval);
+    };
+  }, [socket, roomId, enabled, active]);
+}
+
+function FocusGate({
+  focus,
+  names,
+  teamColor,
+  socket,
+  roomId,
+  label,
+  disabled,
+}: {
+  focus: FocusState | null;
+  names: Record<string, string>;
+  teamColor: string;
+  socket: PlayerSocket | null;
+  roomId: string;
+  label: string;
+  disabled: boolean;
+}) {
+  if (!focus?.required) return null;
+  const ready = new Set(focus.ready);
+  return (
+    <Card className={cn('focus-gate', focus.active && 'is-active')}>
+      <div className="focus-gate-head">
+        <span className="focus-gate-icon">
+          <LockKeyhole size={19} />
+        </span>
+        <div>
+          <p className="eyebrow">Mode verrouillé</p>
+          <h3>{label}</h3>
+        </div>
+        <Badge tone={focus.active ? 'success' : 'warning'}>
+          {focus.active ? 'Actif' : `${focus.ready.length}/${focus.total} prêts`}
+        </Badge>
+      </div>
+      <p className="fine-print">
+        {focus.active
+          ? 'Tout le monde est prêt. Restez sur cet écran : si un joueur le quitte, la salle se réinitialise.'
+          : 'Tous les joueurs actifs doivent rester sur l’écran. Cliquez sur « Je suis prêt » ; la salle s’ouvre quand toute l’équipe est prête.'}
+      </p>
+      {focus.lostBy ? (
+        <div className="focus-lost" role="alert">
+          <AlertTriangle size={15} />
+          <span>{focus.lostBy} a quitté l’écran : la salle a été réinitialisée. Reprenez ensemble.</span>
+        </div>
+      ) : null}
+      <div className="focus-ready-list">
+        {Object.entries(names).map(([id, name]) => (
+          <span key={id} className={cn('focus-player', ready.has(id) && 'is-ready')}>
+            <Avatar name={name} color={teamColor} size="sm" />
+            <span>{name}</span>
+            {ready.has(id) ? <Check size={14} /> : <span className="fine-print">en attente</span>}
+          </span>
+        ))}
+      </div>
+      {!focus.active ? (
+        <Button
+          onClick={() => socket?.emit('player:focus', { roomId, state: 'start' })}
+          disabled={disabled}
+          icon={<LockKeyhole size={16} />}
+        >
+          Je suis prêt
+        </Button>
+      ) : (
+        <p className="focus-active-note">
+          <Check size={14} /> Verrouillage actif — le chrono continue.
+        </p>
+      )}
+    </Card>
+  );
 }
 
 export interface PlayerGameProps {
@@ -228,6 +321,9 @@ function GameHeader({
       <div className="game-header-brand">
         <Logo compact />
         <TeamChip name={state.team.name} color={state.team.color} />
+        <Badge tone="neutral">
+          Séance {state.game.session}/{state.game.sessionCount}
+        </Badge>
         {paused ? <Badge tone="warning">Pause</Badge> : null}
       </div>
       <div className="game-header-stats">
@@ -302,11 +398,26 @@ function LobbyView({
       <Card className="briefing-card">
         <div className="briefing-top">
           <Badge tone="primary">Briefing</Badge>
-          <Badge tone="neutral">{state.game.durationMinutes} min</Badge>
+          <div className="briefing-badges">
+            <Badge tone="neutral">
+              {state.game.sessionCount} séances · {state.game.durationMinutes} min
+            </Badge>
+            <Badge tone="neutral">{state.team.totalRooms} salles</Badge>
+          </div>
         </div>
         <p className="eyebrow">Vestiaire 7 · {state.game.subtitle}</p>
         <h1>{state.game.title}</h1>
         <Narrative text={state.game.intro} />
+        <div className="session-strip">
+          {state.game.sessionTitles.map((title, index) => (
+            <span
+              key={title}
+              className={cn('session-chip', index + 1 === state.game.session && 'is-current')}
+            >
+              {title}
+            </span>
+          ))}
+        </div>
         <Divider />
         <h3 className="small-title">Les règles du jeu</h3>
         <ul className="rules-list">
@@ -387,6 +498,190 @@ function LobbyView({
   );
 }
 
+function ResearchCard({
+  state,
+  socket,
+  paused,
+  connected,
+}: {
+  state: PlayerState;
+  socket: PlayerSocket | null;
+  paused: boolean;
+  connected: boolean;
+}) {
+  const room = state.room;
+  const research = room?.research;
+  const [text, setText] = useState('');
+  const [sources, setSources] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [showForm, setShowForm] = useState(true);
+
+  useEffect(() => {
+    if (!research) return;
+    setText(research.submission?.text ?? '');
+    setSources(
+      Array.from({ length: research.sourcesRequired }, (_, index) => research.submission?.sources[index] ?? ''),
+    );
+    setShowForm(!research.submission || research.submission.status === 'rejected');
+  }, [research?.submission?.id, research?.submission?.status, research?.sourcesRequired]);
+
+  useEffect(() => {
+    setSubmitting(false);
+  }, [research?.submission?.status, research?.submission?.validatedAt]);
+
+  if (!room || !research) return null;
+
+  const disabled = paused || !connected || !socket;
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const filledSources = sources.filter((source) => source.trim()).length;
+  const canSubmit =
+    !disabled &&
+    !submitting &&
+    words >= research.minWords &&
+    words <= research.maxWords &&
+    filledSources >= research.sourcesRequired;
+  const status = research.submission?.status;
+  const verdict = research.submission?.verdict;
+
+  const submit = () => {
+    if (!socket || !canSubmit) return;
+    setSubmitting(true);
+    socket.emit('player:research', {
+      roomId: room.id,
+      text: text.trim(),
+      sources: sources.map((source) => source.trim()).filter(Boolean),
+    });
+  };
+
+  const tone = status === 'approved' ? 'success' : status === 'rejected' ? 'danger' : status === 'pending' ? 'warning' : 'info';
+  const label =
+    status === 'approved'
+      ? 'Validée'
+      : status === 'rejected'
+        ? 'À revoir'
+        : status === 'pending'
+          ? 'En attente'
+          : 'À faire';
+
+  return (
+    <Card className={cn('research-card', status && `is-${status}`)}>
+      <div className="card-heading">
+        <div>
+          <p className="eyebrow">Recherche documentaire</p>
+          <h3>Le carnet du coach</h3>
+        </div>
+        <Badge tone={tone}>{label}</Badge>
+      </div>
+      <p className="research-prompt">{research.prompt}</p>
+      <p className="fine-print">{research.instructions}</p>
+
+      {research.resources.length > 0 ? (
+        <div className="research-resources">
+          <span className="eyebrow">Ressources</span>
+          <ul>
+            {research.resources.map((resource) => (
+              <li key={resource.title}>
+                {resource.url ? (
+                  <a href={resource.url} target="_blank" rel="noreferrer">
+                    {resource.title} <ArrowRight size={12} />
+                  </a>
+                ) : (
+                  <strong>{resource.title}</strong>
+                )}
+                {resource.excerpt ? <span>{resource.excerpt}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {status === 'approved' ? (
+        <div className="research-verdict is-approved">
+          <Check size={17} />
+          <div>
+            <strong>Recherche validée</strong>
+            <p>{research.submission?.comment ?? 'Le code de sortie est débloqué.'}</p>
+          </div>
+        </div>
+      ) : null}
+      {status === 'pending' ? (
+        <div className="research-verdict is-pending">
+          <Clock size={17} />
+          <div>
+            <strong>Jev lit votre recherche…</strong>
+            <p>{research.submission?.comment ?? 'La validation arrive dans un instant.'}</p>
+          </div>
+        </div>
+      ) : null}
+      {status === 'rejected' ? (
+        <div className="research-verdict is-rejected">
+          <AlertTriangle size={17} />
+          <div>
+            <strong>Recherche à revoir</strong>
+            <p>{research.submission?.comment ?? 'Relisez les conseils et complétez votre travail.'}</p>
+            {verdict?.reasons?.length ? (
+              <ul>
+                {verdict.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showForm && status !== 'approved' && status !== 'pending' ? (
+        <div className="research-form">
+          <Textarea
+            value={text}
+            onChange={(event) => setText(event.target.value.slice(0, 6000))}
+            rows={8}
+            placeholder="Écrivez votre synthèse avec vos mots. Citez vos sources, comparez-les, expliquez ce que vous avez appris."
+            disabled={disabled || submitting}
+            aria-label="Votre recherche"
+          />
+          <div className="research-form-meta">
+            <span className={cn(words < research.minWords && 'is-warning')}>
+              {words} mots · {research.minWords}–{research.maxWords} attendus
+            </span>
+            <span className={cn(filledSources < research.sourcesRequired && 'is-warning')}>
+              {filledSources}/{research.sourcesRequired} sources
+            </span>
+          </div>
+          <div className="research-source-list">
+            {sources.map((source, index) => (
+              <Input
+                key={index}
+                value={source}
+                onChange={(event) =>
+                  setSources((current) =>
+                    current.map((item, sourceIndex) => (sourceIndex === index ? event.target.value : item)),
+                  )
+                }
+                placeholder={`Source ${index + 1} : URL, titre du site ou de l’article`}
+                disabled={disabled || submitting}
+                aria-label={`Source ${index + 1}`}
+              />
+            ))}
+          </div>
+          <div className="research-actions">
+            <span className="fine-print">Jev vérifie la consigne, les sources et la synthèse. Le professeur peut intervenir.</span>
+            <Button onClick={submit} loading={submitting} disabled={!canSubmit} icon={<Send size={16} />}>
+              Soumettre à Jev
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {status === 'rejected' && !showForm ? (
+        <Button variant="secondary" onClick={() => setShowForm(true)}>
+          Revoir ma recherche
+        </Button>
+      ) : null}
+    </Card>
+  );
+}
+
 function RoomView({
   state,
   socket,
@@ -403,7 +698,9 @@ function RoomView({
   const [code, setCode] = useState('');
   const [hintOpen, setHintOpen] = useState(false);
   const disabled = paused || !connected || !socket;
+  const focusBlocked = Boolean(room?.lock === 'focus' && !room.focus?.active);
   const answeredKey = room ? room.questions.map((question) => (question.answeredCorrectly ? '1' : '0')).join('') : '';
+  useFocusGuard(socket, room?.id ?? '', Boolean(room?.lock === 'focus'), Boolean(room?.focus?.active));
 
   useEffect(() => {
     setPendingQuestion(null);
@@ -412,15 +709,19 @@ function RoomView({
 
   if (!room) return null;
 
+  const activeNames = Object.fromEntries(
+    state.players.filter((player) => player.status === 'active').map((player) => [player.id, player.name]),
+  );
+
   const answer = (question: PublicQuestion, option: number) => {
-    if (!socket || disabled || pendingQuestion) return;
+    if (!socket || disabled || focusBlocked || pendingQuestion) return;
     setPendingQuestion(question.id);
     socket.emit('player:answer', { roomId: room.id, questionId: question.id, option });
     window.setTimeout(() => setPendingQuestion(null), 2500);
   };
 
   const submitCode = () => {
-    if (!socket || disabled || !room.allQuestionsCorrect || code.length === 0) return;
+    if (!socket || disabled || focusBlocked || !room.exitUnlocked || code.length === 0) return;
     socket.emit('player:code', { roomId: room.id, code });
   };
 
@@ -448,6 +749,18 @@ function RoomView({
           <Narrative text={room.narrative} />
         </Card>
 
+        <FocusGate
+          focus={room.focus}
+          names={activeNames}
+          teamColor={state.team.color}
+          socket={socket}
+          roomId={room.id}
+          label={room.title}
+          disabled={disabled}
+        />
+
+        <ResearchCard state={state} socket={socket} paused={paused} connected={connected} />
+
         <div className="question-list">
           {room.questions.map((question, index) => (
             <Card key={question.id} className={cn('question-card', question.answeredCorrectly && 'is-answered')}>
@@ -472,7 +785,7 @@ function RoomView({
                       key={option}
                       type="button"
                       className={cn('option-button', pendingQuestion === question.id && 'is-pending')}
-                      disabled={disabled || Boolean(pendingQuestion)}
+                      disabled={disabled || focusBlocked || Boolean(pendingQuestion)}
                       onClick={() => answer(question, optionIndex)}
                     >
                       <span className="option-letter">{String.fromCharCode(65 + optionIndex)}</span>
@@ -485,23 +798,35 @@ function RoomView({
           ))}
         </div>
 
-        <Card className={cn('exit-card', room.allQuestionsCorrect ? 'is-unlocked' : 'is-locked')}>
+        <Card className={cn('exit-card', room.exitUnlocked ? 'is-unlocked' : 'is-locked')}>
           <div className="exit-head">
-            <span className="exit-icon">{room.allQuestionsCorrect ? <KeyRound size={20} /> : <LockKeyhole size={20} />}</span>
+            <span className="exit-icon">{room.exitUnlocked ? <KeyRound size={20} /> : <LockKeyhole size={20} />}</span>
             <div>
-              <h3>{room.allQuestionsCorrect ? 'Le code de sortie' : 'Code de sortie verrouillé'}</h3>
+              <h3>{room.exitUnlocked ? 'Le code de sortie' : 'Code de sortie verrouillé'}</h3>
               <p>{room.exitPrompt}</p>
             </div>
           </div>
-          {room.allQuestionsCorrect ? (
+          {room.exitUnlocked ? (
             <div className="exit-form">
               <CodeInput value={code} onChange={setCode} length={1} numeric label="Code de sortie" />
-              <Button onClick={submitCode} disabled={disabled || code.length === 0} icon={<KeyRound size={17} />}>
+              <Button
+                onClick={submitCode}
+                disabled={disabled || focusBlocked || code.length === 0}
+                icon={<KeyRound size={17} />}
+              >
                 Valider le code
               </Button>
             </div>
           ) : (
-            <p className="fine-print">Répondez d’abord aux {room.questions.length} questions pour débloquer le code.</p>
+            <p className="fine-print">
+              {!room.allQuestionsCorrect
+                ? room.questions.length === 1
+                  ? 'Réponds d’abord à la question pour débloquer le code.'
+                  : `Réponds d’abord aux ${room.questions.length} questions pour débloquer le code.`
+                : room.research
+                  ? 'La recherche doit être validée par Jev (ou par le professeur) avant le code.'
+                  : 'Le code est encore verrouillé.'}
+            </p>
           )}
         </Card>
       </div>
@@ -624,10 +949,16 @@ function FinalView({
           ))}
         </div>
         <div className="final-form">
-          <CodeInput value={code} onChange={setCode} length={5} numeric label="Code final à cinq chiffres" />
+          <CodeInput
+            value={code}
+            onChange={setCode}
+            length={state.final.digits.length}
+            numeric
+            label="Code final à dix chiffres"
+          />
           <Button
             size="lg"
-            disabled={disabled || code.length !== 5}
+            disabled={disabled || code.length !== state.final.digits.length}
             icon={<Trophy size={18} />}
             onClick={() => socket?.emit('player:finalCode', { code })}
           >
@@ -635,8 +966,8 @@ function FinalView({
           </Button>
         </div>
         <p className="fine-print">
-          Les cinq chiffres ont été gagnés dans les cinq salles. Remettez-les dans l’ordre : vestiaire, table de marque,
-          terrain, zone, coup franc.
+          Les {state.final.digits.length} chiffres ont été gagnés dans les {state.team.totalRooms} salles. Remettez-les dans
+          l’ordre : vestiaire, table de marque, terrain, zone, coup franc, musée, légendes, club, match, finale.
         </p>
       </Card>
       <Card className="final-side">
@@ -695,7 +1026,11 @@ function FinishedView({ state, onOpenQuiz }: { state: PlayerState; onOpenQuiz: (
           <span>
             {answered}/{state.quiz.questions.length} réponses
           </span>
-          {state.quiz.finished ? <Badge tone="success">Score : {state.quiz.score}/5</Badge> : null}
+          {state.quiz.finished ? (
+            <Badge tone="success">
+              Score : {state.quiz.score}/{state.quiz.questions.length}
+            </Badge>
+          ) : null}
         </div>
         <Progress value={answered} max={state.quiz.questions.length} />
         <Button
@@ -710,7 +1045,10 @@ function FinishedView({ state, onOpenQuiz }: { state: PlayerState; onOpenQuiz: (
               ? 'Reprendre mon quiz'
               : 'Commencer mon quiz'}
         </Button>
-        <p className="fine-print">Ce quiz est individuel : réponds seul. Ton professeur voit ton score.</p>
+        <p className="fine-print">
+          Ce quiz est individuel : réponds seul, reste sur l’écran. Si tu le quittes, la réponse en cours est annulée. Ton
+          professeur voit ton score.
+        </p>
       </Card>
     </div>
   );
@@ -753,7 +1091,10 @@ function QuizView({
   const answered = questions.filter((question) => question.choice != null).length;
   const finished = state.quiz.finished;
   const score = state.quiz.score ?? questions.filter((question) => question.correct).length;
-  const disabled = !connected || !socket || finished || pending;
+  const quizFocus = state.quiz.focus;
+  const focusActive = quizFocus.active;
+  const disabled = !connected || !socket || finished || pending || !focusActive;
+  useFocusGuard(socket, 'quiz', !finished, focusActive);
 
   useEffect(() => {
     setPending(false);
@@ -764,7 +1105,7 @@ function QuizView({
   }, [index, questions.length]);
 
   const choose = (option: number) => {
-    if (!socket || !current || disabled) return;
+    if (!socket || !current || disabled || !focusActive) return;
     setPending(true);
     socket.emit('player:quizAnswer', { questionId: current.id, option });
     window.setTimeout(() => setPending(false), 2500);
@@ -778,9 +1119,21 @@ function QuizView({
         </Button>
         <div className="quiz-top-right">
           <Badge tone="info">Quiz individuel</Badge>
-          {finished ? <Badge tone="success">{score}/5</Badge> : null}
+          {finished ? <Badge tone="success">{score}/{questions.length}</Badge> : null}
         </div>
       </div>
+
+      {!finished ? (
+        <FocusGate
+          focus={quizFocus}
+          names={{ [state.me.id]: state.me.name }}
+          teamColor={state.team.color}
+          socket={socket}
+          roomId="quiz"
+          label="Quiz individuel"
+          disabled={!connected || !socket}
+        />
+      ) : null}
 
       {finished ? (
         <Card className="quiz-finished">
@@ -788,15 +1141,19 @@ function QuizView({
             <Sparkles size={26} />
           </div>
           <p className="eyebrow">Bilan individuel</p>
-          <h1>{score}/5</h1>
+          <h1>{score}/{questions.length}</h1>
           <p>
-            {score >= 4
+            {score >= questions.length * 0.8
               ? 'Très solide : tu maîtrises les règles clés du handball.'
-              : score >= 2
+              : score >= questions.length * 0.5
                 ? 'Bien joué : quelques règles à revoir, le débrief du prof t’aidera.'
                 : 'C’est un point de départ : relis les règles avec ton équipe.'}
           </p>
-          <Progress value={score} max={5} tone={score >= 4 ? 'success' : 'primary'} />
+          <Progress
+            value={score}
+            max={questions.length}
+            tone={score >= questions.length * 0.8 ? 'success' : 'primary'}
+          />
         </Card>
       ) : (
         <Card className="quiz-card">
@@ -1169,16 +1526,26 @@ function HelpModal({
         <section>
           <h3>Le but</h3>
           <p>
-            Traversez les {state.team.totalRooms} salles du {state.game.title} et retrouvez le code du trophée. Chaque
-            salle donne un chiffre.
+            Traversez les {state.team.totalRooms} salles du {state.game.title} en {state.game.sessionCount} séances et
+            retrouvez le code du trophée. Chaque salle donne un chiffre.
           </p>
           <h3>Les indices</h3>
           <p>
             Chaque joueur reçoit un indice privé différent. Personne ne peut résoudre seul : partagez vos indices dans le
             chat d’équipe.
           </p>
+          <h3>Les salles verrouillées</h3>
+          <p>
+            Certaines salles sont automatiques : tous les joueurs doivent rester sur l’écran et cliquer sur « Je suis
+            prêt ». Si un joueur quitte l’écran, la salle se réinitialise.
+          </p>
         </section>
         <section>
+          <h3>Les recherches</h3>
+          <p>
+            Les salles de recherche ouvrent le web : citez 2 sources (3 pour la finale), écrivez avec vos mots et
+            comparez. Jev valide la synthèse ; le professeur peut intervenir.
+          </p>
           <h3>Le chat</h3>
           <p>
             Jev vérifie chaque message avant sa publication. Le professeur peut lire le chat. Les messages bloqués ne
@@ -1191,7 +1558,7 @@ function HelpModal({
       <Divider />
       <div className="help-footer">
         <span className="mono">Partie {code}</span>
-        <span className="fine-print">Durée indicative : {state.game.durationMinutes} minutes</span>
+        <span className="fine-print">Durée indicative : {state.game.durationMinutes} minutes · {state.game.sessionCount} séances</span>
       </div>
     </Modal>
   );

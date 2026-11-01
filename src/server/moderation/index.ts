@@ -1,8 +1,9 @@
-import type { ModerationDecision } from '../../shared/types.js';
+import type { ModerationDecision, ResearchVerdict } from '../../shared/types.js';
 import { config } from '../config.js';
 import { decideModeration } from './decide.js';
 import { analyzeWithJev, JevError, type JevContext, type JevVerdict } from './jev.js';
 import { localFilter } from './local.js';
+import { validateResearchWithJev, type ResearchContext } from './research.js';
 
 interface HealthState {
   calls: number;
@@ -69,6 +70,54 @@ export async function moderateMessage(text: string, context: JevContext): Promis
       decision: decideModeration(local, null, message),
       latencyMs: null,
       error: message,
+    };
+  }
+}
+
+export async function validateResearch(context: ResearchContext): Promise<{
+  verdict: ResearchVerdict;
+  error: string | null;
+  latencyMs: number | null;
+}> {
+  if (!config.jev.enabled || !config.jev.apiKey) {
+    return {
+      verdict: {
+        approved: false,
+        score: 0,
+        confidence: 0,
+        reasons: ['Jev est indisponible : le professeur doit relire cette recherche.'],
+        raw: { error: 'local-mode' },
+      },
+      error: 'local-mode',
+      latencyMs: null,
+    };
+  }
+
+  health.calls += 1;
+  try {
+    const verdict = await validateResearchWithJev(context);
+    health.successes += 1;
+    health.lastSuccessAt = Date.now();
+    health.lastLatencyMs = typeof verdict.raw === 'object' && verdict.raw && 'latencyMs' in verdict.raw
+      ? Number((verdict.raw as { latencyMs?: number }).latencyMs ?? 0)
+      : null;
+    health.lastError = null;
+    return { verdict, error: null, latencyMs: health.lastLatencyMs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur Jev inconnue';
+    health.failures += 1;
+    health.lastFailureAt = Date.now();
+    health.lastError = message;
+    return {
+      verdict: {
+        approved: false,
+        score: 0,
+        confidence: 0,
+        reasons: ['Jev est indisponible : le professeur doit relire cette recherche.'],
+        raw: { error: message },
+      },
+      error: message,
+      latencyMs: null,
     };
   }
 }

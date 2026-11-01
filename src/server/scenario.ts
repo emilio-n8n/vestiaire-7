@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import { config } from './config.js';
 import { parseScenario, type Scenario, type ScenarioQuestion, type ScenarioRoom } from '../shared/scenario.js';
-import type { PublicQuestion, PublicRoom, QuizQuestionState } from '../shared/types.js';
+import type {
+  FocusState,
+  PublicQuestion,
+  PublicRoom,
+  QuizQuestionState,
+  ResearchState,
+} from '../shared/types.js';
 
 let cached: Scenario | null = null;
 
@@ -56,7 +62,13 @@ export function publicRoom(
   index: number,
   progress: RoomProgress,
   clues: string[],
+  extras: {
+    research?: ResearchState | null;
+    focus?: FocusState | null;
+    researchApproved?: boolean;
+  } = {},
 ): PublicRoom {
+  const questionsOk = allQuestionsCorrect(room, progress);
   return {
     index,
     id: room.id,
@@ -65,10 +77,14 @@ export function publicRoom(
     narrative: room.narrative,
     questions: room.questions.map((q) => publicQuestion(q, progress)),
     exitPrompt: room.exitPrompt,
-    allQuestionsCorrect: allQuestionsCorrect(room, progress),
+    allQuestionsCorrect: questionsOk,
+    exitUnlocked: questionsOk && (!room.research || Boolean(extras.researchApproved)),
     hint: progress.hintUsed ? room.hint : null,
     clues,
     attempts: progress.attempts,
+    lock: room.lock,
+    research: extras.research ?? null,
+    focus: extras.focus ?? null,
   };
 }
 

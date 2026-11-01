@@ -4129,6 +4129,425 @@ button {
 }
 
 /* =========================================================
+   Focus, recherche, missions
+   ========================================================= */
+
+.briefing-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.session-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.session-chip {
+  padding: 5px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.session-chip.is-current {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-2));
+  color: var(--color-primary);
+}
+
+.focus-gate {
+  padding: 20px;
+  border-color: color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--color-warning) 6%, var(--color-surface)), var(--color-surface));
+}
+
+.focus-gate.is-active {
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--color-success) 6%, var(--color-surface)), var(--color-surface));
+}
+
+.focus-gate-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 8px;
+}
+
+.focus-gate-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface-2));
+  color: var(--color-warning);
+}
+
+.focus-gate.is-active .focus-gate-icon {
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface-2));
+  color: var(--color-success);
+}
+
+.focus-gate-head h3 {
+  font-size: 1.05rem;
+}
+
+.focus-gate-head .badge {
+  margin-left: auto;
+}
+
+.focus-lost {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 34%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface-2));
+  color: var(--color-danger);
+  font-size: 0.82rem;
+}
+
+.focus-lost svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.focus-ready-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.focus-player {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.focus-player.is-ready {
+  border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-surface-2));
+  color: var(--color-text);
+}
+
+.focus-player.is-ready svg {
+  color: var(--color-success);
+}
+
+.focus-active-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--color-success);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.research-card {
+  padding: 22px;
+  border-color: color-mix(in srgb, var(--color-accent) 26%, var(--color-border));
+}
+
+.research-card.is-approved {
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+}
+
+.research-card.is-rejected {
+  border-color: color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
+}
+
+.research-prompt {
+  margin-bottom: 8px;
+  color: var(--color-text);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.research-resources {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.research-resources ul {
+  display: grid;
+  gap: 8px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.research-resources li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.82rem;
+}
+
+.research-resources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  color: var(--color-info);
+  font-weight: 650;
+}
+
+.research-resources a:hover {
+  text-decoration: underline;
+}
+
+.research-resources li > span {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.research-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 12px 0;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.research-verdict svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.research-verdict strong {
+  font-size: 0.88rem;
+}
+
+.research-verdict p,
+.research-verdict li {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.research-verdict ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.research-verdict.is-approved {
+  border-color: color-mix(in srgb, var(--color-success) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 7%, var(--color-surface-2));
+  color: var(--color-success);
+}
+
+.research-verdict.is-pending {
+  border-color: color-mix(in srgb, var(--color-warning) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 7%, var(--color-surface-2));
+  color: var(--color-warning);
+}
+
+.research-verdict.is-rejected {
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 7%, var(--color-surface-2));
+  color: var(--color-danger);
+}
+
+.research-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.research-form-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.74rem;
+}
+
+.research-form-meta .is-warning {
+  color: var(--color-warning);
+}
+
+.research-source-list {
+  display: grid;
+  gap: 6px;
+}
+
+.research-source-list .input {
+  font-size: 0.82rem;
+}
+
+.research-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.missions-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.5fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.missions-main {
+  min-width: 0;
+}
+
+.mission-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mission-card {
+  padding: 16px;
+  border-left: 4px solid var(--color-warning);
+}
+
+.mission-card.is-approved {
+  border-left-color: var(--color-success);
+}
+
+.mission-card.is-rejected {
+  border-left-color: var(--color-danger);
+}
+
+.mission-card .moderation-message-body {
+  white-space: pre-wrap;
+}
+
+.mission-sources {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.mission-sources ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 17px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.mission-sources a {
+  color: var(--color-info);
+  overflow-wrap: anywhere;
+}
+
+.mission-reasons {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--color-warning);
+  font-size: 0.78rem;
+}
+
+.missions-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.focus-monitor,
+.focus-events-card {
+  padding: 20px;
+}
+
+.focus-monitor-list {
+  display: grid;
+  gap: 6px;
+}
+
+.focus-monitor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.focus-monitor-row.is-active {
+  border-color: color-mix(in srgb, var(--color-success) 32%, var(--color-border));
+}
+
+.focus-monitor-row.is-lost {
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+}
+
+.focus-monitor-row strong {
+  font-size: 0.82rem;
+}
+
+.focus-event-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.focus-event-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  font-size: 0.78rem;
+}
+
+.focus-event-list li span {
+  color: var(--color-text-muted);
+}
+
+.focus-event-list li time {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.digit-slots {
+  flex-wrap: wrap;
+}
+
+/* =========================================================
    Animations
    ========================================================= */
 
@@ -4184,6 +4603,7 @@ button {
   .create-grid,
   .admin-game-grid,
   .moderation-layout,
+  .missions-layout,
   .admin-chat-layout {
     grid-template-columns: minmax(0, 1fr);
   }

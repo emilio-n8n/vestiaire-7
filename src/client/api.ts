@@ -127,6 +127,12 @@ export const api = {
       `/api/admin/games/${encodeURIComponent(gameId)}/reports/${encodeURIComponent(reportId)}/resolve`,
     );
   },
+  validateResearch(gameId: string, researchId: string, approved: boolean, comment?: string) {
+    return post<{ ok: true }>(
+      `/api/admin/games/${encodeURIComponent(gameId)}/research/${encodeURIComponent(researchId)}/validate`,
+      { approved, comment },
+    );
+  },
   deleteGame(gameId: string) {
     return request<{ ok: true }>(`/api/admin/games/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
   },

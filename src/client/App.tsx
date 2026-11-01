@@ -109,8 +109,9 @@ function Landing() {
               <span>Le coach a disparu.</span>
             </h1>
             <p>
-              Cinq salles, cinq chiffres, un trophée. Votre équipe doit coopérer pour sortir. Chaque joueur reçoit un
-              indice différent : le chat est votre seul lien.
+              Dix salles, dix chiffres, trois séances. Cinq défis automatiques, cinq enquêtes sur le monde du handball.
+              Votre équipe doit coopérer pour sortir. Chaque joueur reçoit un indice différent : le chat est votre seul
+              lien.
             </p>
             <div className="landing-actions">
               <Link to="/admin" className="btn btn-secondary btn-lg">
@@ -164,8 +165,8 @@ function Landing() {
           <div className="landing-step">
             <span className="landing-step-number">02</span>
             <KeyRound size={20} />
-            <h3>Cinq salles à ouvrir</h3>
-            <p>Des quiz de handball, des indices privés et un code à assembler.</p>
+            <h3>Dix salles à ouvrir</h3>
+            <p>Des quiz verrouillés, des recherches web, des indices privés et un code à assembler.</p>
           </div>
           <div className="landing-step">
             <span className="landing-step-number">03</span>
@@ -181,8 +182,8 @@ function Landing() {
             <h2>Un dashboard pour lancer, suivre et débriefer.</h2>
             <p>
               Importe ta liste, ouvre le salon, partage un lien, lance la partie. Tu vois les connexions, les salles, les
-              scores et les messages. En fin de partie, tu récupères les quiz individuels, les messages d’entraide et
-              l’export CSV.
+              scores et les messages. Tu valides ou renvoies les recherches dans Missions. En fin de partie, tu récupères
+              les quiz individuels, les sources, les messages d’entraide et l’export CSV.
             </p>
             <Link to="/admin" className="btn btn-primary">
               Ouvrir le dashboard <ArrowRight size={17} />

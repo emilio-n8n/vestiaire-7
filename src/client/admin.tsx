@@ -32,8 +32,10 @@ import {
   Zap,
 } from 'lucide-react';
 import type {
+  AdminFocus,
   AdminMessage,
   AdminPlayer,
+  AdminResearch,
   AdminState,
   AdminTeam,
   CreateGameInput,
@@ -84,7 +86,7 @@ import {
   type TeamColorKey,
 } from './utils';
 
-type AdminTab = 'direct' | 'moderation' | 'chat' | 'results';
+type AdminTab = 'direct' | 'moderation' | 'missions' | 'chat' | 'results';
 
 interface ConfirmState {
   title: string;
@@ -610,14 +612,15 @@ export function CreateGame() {
               <p className="eyebrow">Scénario</p>
               <h2>Le Dernier Match</h2>
               <p>
-                La finale du championnat. Le coach a disparu, le vestiaire est verrouillé. Cinq salles, cinq chiffres, un
-                trophée.
+                La finale du championnat. Le coach a disparu, le vestiaire est verrouillé. Dix salles, dix chiffres, trois
+                séances : cinq défis automatiques et cinq enquêtes sur le monde du handball.
               </p>
               <div className="scenario-facts">
-                <span><b>5</b> salles</span>
-                <span><b>45</b> min</span>
-                <span><b>2</b> questions/salle</span>
-                <span><b>5</b> questions individuelles</span>
+                <span><b>10</b> salles</span>
+                <span><b>3</b> séances · <b>135</b> min</span>
+                <span><b>5</b> salles verrouillées</span>
+                <span><b>5</b> recherches web</span>
+                <span><b>10</b> questions individuelles</span>
               </div>
             </Card>
             <Card className="create-help">
@@ -625,7 +628,7 @@ export function CreateGame() {
               <div>
                 <strong>Comment ça marche ?</strong>
                 <p>Le prof ouvre le salon. Chaque élève clique son prénom. Une équipe entre quand tous ses joueurs sont connectés.</p>
-                <p>Le chat d’équipe est le seul moyen de partager les indices. Jev modère avant publication.</p>
+                <p>Le chat d’équipe est le seul moyen de partager les indices. Jev modère les messages et valide les recherches ; tu peux reprendre la main dans Missions.</p>
               </div>
             </Card>
           </aside>
@@ -762,11 +765,14 @@ export function AdminGame() {
     state.messages.filter((message) => message.status === 'blocked' || message.status === 'flagged').length +
     state.reports.filter((report) => !report.resolved).length;
   const selectedChatTeam = chatTeamId ?? state.teams[0]?.id;
+  const missionsCount =
+    state.research.filter((item) => item.status !== 'approved').length + state.focusEvents.length;
   const tabs: Array<{ id: AdminTab; label: string; count?: number; icon: typeof Play }> = [
     { id: 'direct', label: 'Direct', icon: Play },
     { id: 'moderation', label: 'Modération', count: moderationCount, icon: ShieldCheck },
+    { id: 'missions', label: 'Missions', count: missionsCount, icon: ListChecks },
     { id: 'chat', label: 'Chat', icon: MessageCircle },
-    { id: 'results', label: 'Résultats', icon: ListChecks },
+    { id: 'results', label: 'Résultats', icon: Trophy },
   ];
 
   const openConfirm = (config: ConfirmState) => setConfirm(config);
@@ -918,6 +924,19 @@ export function AdminGame() {
             onHide={(message) => void act(() => api.hideMessage(state.game.id, message.id), 'Message masqué pour l’équipe.')}
             onResolve={(report) => void act(() => api.resolveReport(state.game.id, report.id), 'Signalement résolu.')}
             onOpenChat={openChat}
+          />
+        ) : null}
+
+        {tab === 'missions' ? (
+          <MissionsPanel
+            state={state}
+            busy={busy}
+            onValidate={(research, approved, comment) =>
+              void act(
+                () => api.validateResearch(state.game.id, research.id, approved, comment),
+                approved ? 'Recherche validée.' : 'Recherche renvoyée à l’équipe.',
+              )
+            }
           />
         ) : null}
 
@@ -1136,6 +1155,8 @@ function TeamBoard({
             gameStatus={state.game.status}
             offset={offset}
             busy={busy}
+            focus={state.focus.find((item) => item.teamId === team.id)}
+            quizTotal={state.game.scenario.finalQuiz.length}
             onOpenChat={onOpenChat}
             onForce={onForce}
             onHint={onHint}
@@ -1154,6 +1175,8 @@ function TeamCard({
   gameStatus,
   offset,
   busy,
+  focus,
+  quizTotal,
   onOpenChat,
   onForce,
   onHint,
@@ -1165,6 +1188,8 @@ function TeamCard({
   gameStatus: AdminState['game']['status'];
   offset: number;
   busy: boolean;
+  focus?: AdminFocus;
+  quizTotal: number;
   onOpenChat: (teamId: string) => void;
   onForce: (team: AdminTeam) => void;
   onHint: (team: AdminTeam) => void;
@@ -1178,6 +1203,8 @@ function TeamCard({
   const elapsed = team.elapsedMs + (live ? offset : 0);
   const solved = team.progress.filter((room) => room.solvedAt).length;
   const status = teamStatusLabel(team.startedAt, team.finishedAt);
+  const currentProgress = team.progress[team.currentRoom];
+  const researchStatus = currentProgress?.researchStatus ?? null;
   return (
     <Card className="admin-team-card" data-color={team.color}>
       <div className="team-card-top">
@@ -1189,6 +1216,24 @@ function TeamCard({
               <Badge tone={team.finishedAt ? 'success' : team.canStart ? 'info' : 'neutral'}>{status}</Badge>
               {team.canStart ? <Badge tone="success">Prête</Badge> : null}
               {team.finalCodeOk ? <Badge tone="success"><Trophy size={12} /> Trophée</Badge> : null}
+              {focus ? (
+                <Badge tone={focus.lostBy ? 'danger' : focus.active ? 'success' : 'warning'}>
+                  {focus.lostBy ? 'Sortie d’écran' : focus.active ? 'Verrouillé' : `${focus.ready.length}/${focus.total} prêts`}
+                </Badge>
+              ) : null}
+              {researchStatus ? (
+                <Badge
+                  tone={
+                    researchStatus === 'approved'
+                      ? 'success'
+                      : researchStatus === 'rejected'
+                        ? 'danger'
+                        : 'warning'
+                  }
+                >
+                  Recherche {researchStatus === 'approved' ? 'validée' : researchStatus === 'rejected' ? 'à revoir' : 'en attente'}
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1236,7 +1281,7 @@ function TeamCard({
                 )}
                 {player.quizFinishedAt ? (
                   <Badge tone={player.quizScore != null && player.quizScore >= 3 ? 'success' : 'warning'}>
-                    Quiz {player.quizScore ?? 0}/5
+                    Quiz {player.quizScore ?? 0}/{quizTotal}
                   </Badge>
                 ) : player.quizAnswers > 0 ? (
                   <Badge tone="info">Quiz en cours</Badge>
@@ -1523,6 +1568,257 @@ function ModerationMessageCard({
   );
 }
 
+function MissionsPanel({
+  state,
+  busy,
+  onValidate,
+}: {
+  state: AdminState;
+  busy: boolean;
+  onValidate: (research: AdminResearch, approved: boolean, comment?: string) => void;
+}) {
+  const [filter, setFilter] = useState<'todo' | 'pending' | 'rejected' | 'approved'>('todo');
+  const [teamId, setTeamId] = useState('all');
+  const [rejecting, setRejecting] = useState<AdminResearch | null>(null);
+  const [comment, setComment] = useState('');
+
+  const counts = {
+    todo: state.research.filter((item) => item.status !== 'approved').length,
+    pending: state.research.filter((item) => item.status === 'pending').length,
+    rejected: state.research.filter((item) => item.status === 'rejected').length,
+    approved: state.research.filter((item) => item.status === 'approved').length,
+  };
+  const list = state.research
+    .filter((item) => teamId === 'all' || item.teamId === teamId)
+    .filter((item) =>
+      filter === 'todo' ? item.status !== 'approved' : item.status === filter,
+    );
+
+  const startReject = (research: AdminResearch) => {
+    setRejecting(research);
+    setComment('');
+  };
+
+  const submitReject = () => {
+    if (!rejecting) return;
+    onValidate(rejecting, false, comment.trim() || undefined);
+    setRejecting(null);
+    setComment('');
+  };
+
+  return (
+    <div className="missions-layout">
+      <div className="missions-main">
+        <SectionHeading
+          eyebrow="Carnet du coach"
+          title="Missions de recherche"
+          description="Jev valide la consigne, les sources et la synthèse. Tu peux reprendre la main : valider, renvoyer ou commenter."
+        />
+        <div className="moderation-toolbar">
+          <Tabs
+            tabs={[
+              { id: 'todo', label: 'À traiter', count: counts.todo },
+              { id: 'pending', label: 'En attente', count: counts.pending },
+              { id: 'rejected', label: 'À revoir', count: counts.rejected },
+              { id: 'approved', label: 'Validées', count: counts.approved },
+            ]}
+            value={filter}
+            onChange={setFilter}
+          />
+          <Select value={teamId} onChange={(event) => setTeamId(event.target.value)} aria-label="Filtrer par équipe">
+            <option value="all">Toutes les équipes</option>
+            {state.teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="mission-list">
+          {list.length === 0 ? (
+            <Card>
+              <EmptyState icon={ListChecks} title="Aucune mission dans ce filtre">
+                Les recherches des équipes apparaîtront ici avec le verdict de Jev et les sources citées.
+              </EmptyState>
+            </Card>
+          ) : (
+            list.map((research) => (
+              <MissionCard
+                key={research.id}
+                research={research}
+                teamColor={state.teams.find((team) => team.id === research.teamId)?.color ?? 'blue'}
+                busy={busy}
+                onApprove={() => onValidate(research, true)}
+                onReject={() => startReject(research)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      <aside className="missions-side">
+        <Card className="focus-monitor">
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Verrouillage</p>
+              <h2>Salles en focus</h2>
+            </div>
+            <KeyRound size={20} />
+          </div>
+          {state.focus.length === 0 ? (
+            <p className="fine-print">Aucune salle verrouillée en cours. Les salles automatiques apparaîtront ici.</p>
+          ) : (
+            <div className="focus-monitor-list">
+              {state.focus.map((item) => (
+                <div key={item.teamId} className={cn('focus-monitor-row', item.active && 'is-active', item.lostBy && 'is-lost')}>
+                  <div>
+                    <strong>{state.teams.find((team) => team.id === item.teamId)?.name ?? 'Équipe'}</strong>
+                    <p className="fine-print">{item.roomTitle}</p>
+                  </div>
+                  <Badge tone={item.lostBy ? 'danger' : item.active ? 'success' : 'warning'}>
+                    {item.lostBy ? `Sortie : ${item.lostBy}` : item.active ? 'Actif' : `${item.ready.length}/${item.total} prêts`}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="focus-events-card">
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Journal</p>
+              <h2>Sorties d’écran</h2>
+            </div>
+            <AlertTriangle size={19} />
+          </div>
+          {state.focusEvents.length === 0 ? (
+            <p className="fine-print">Aucune sortie d’écran signalée pour l’instant.</p>
+          ) : (
+            <ul className="focus-event-list">
+              {state.focusEvents.map((event) => (
+                <li key={event.id}>
+                  <strong>{event.playerName}</strong>
+                  <span>{event.teamName} · {event.roomTitle}</span>
+                  <time>{formatTime(event.at)}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </aside>
+
+      <Modal
+        open={Boolean(rejecting)}
+        onClose={() => setRejecting(null)}
+        title="Renvoyer la recherche"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRejecting(null)} disabled={busy}>
+              Annuler
+            </Button>
+            <Button variant="danger" onClick={submitReject} loading={busy}>
+              Renvoyer à l’équipe
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Explique à l’équipe ce qui doit être amélioré. Le commentaire s’affichera dans sa salle ; elle pourra
+          resoumettre.
+        </p>
+        <Textarea
+          value={comment}
+          onChange={(event) => setComment(event.target.value.slice(0, 500))}
+          rows={4}
+          placeholder="Ex. : cite deux sources, compare-les et explique ce que tu as appris."
+        />
+      </Modal>
+    </div>
+  );
+}
+
+function MissionCard({
+  research,
+  teamColor,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  research: AdminResearch;
+  teamColor: string;
+  busy: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const tone = research.status === 'approved' ? 'success' : research.status === 'rejected' ? 'danger' : 'warning';
+  const label =
+    research.status === 'approved' ? 'Validée' : research.status === 'rejected' ? 'À revoir' : 'En attente';
+  return (
+    <Card className={cn('mission-card', `is-${research.status}`)}>
+      <div className="moderation-card-head">
+        <div>
+          <div className="moderation-meta">
+            <Badge tone={tone}>{label}</Badge>
+            <TeamChip name={research.teamName} color={teamColor} />
+            <span className="fine-print">{research.roomTitle}</span>
+            <span className="fine-print">{research.playerName}</span>
+            <span className="fine-print">{formatTime(research.submittedAt)}</span>
+          </div>
+          <h3>{research.teamName}</h3>
+        </div>
+        <div className="moderation-actions">
+          {research.status !== 'approved' ? (
+            <Button size="sm" icon={<Check size={14} />} disabled={busy} onClick={onApprove}>
+              Valider
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" icon={<AlertTriangle size={14} />} disabled={busy} onClick={onReject}>
+            À revoir
+          </Button>
+        </div>
+      </div>
+      <blockquote className="moderation-message-body">{research.text}</blockquote>
+      <div className="mission-sources">
+        <span className="eyebrow">Sources</span>
+        <ul>
+          {research.sources.map((source) => (
+            <li key={source}>
+              {/^https?:\/\//i.test(source) ? (
+                <a href={source} target="_blank" rel="noreferrer">
+                  {source}
+                </a>
+              ) : (
+                source
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="moderation-analysis">
+        <span>
+          <b>Jev</b> {research.verdict?.approved ? 'a validé' : 'a refusé'}
+        </span>
+        <span>
+          <b>Qualité</b> {research.verdict ? `${research.verdict.score.toFixed(1)}/3` : '—'}
+        </span>
+        <span>
+          <b>Confiance</b> {research.verdict ? `${Math.round(research.verdict.confidence * 100)} %` : '—'}
+        </span>
+      </div>
+      {research.comment ? <p className="moderation-reason">{research.comment}</p> : null}
+      {research.verdict?.reasons?.length ? (
+        <ul className="mission-reasons">
+          {research.verdict.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
 function ChatAdminPanel({
   state,
   selectedTeamId,
@@ -1689,6 +1985,9 @@ function ResultsPanel({
     .map((player) => player.quizScore)
     .filter((score): score is number => score != null);
   const averageQuiz = quizScores.length > 0 ? quizScores.reduce((sum, score) => sum + score, 0) / quizScores.length : 0;
+  const quizTotal = state.game.scenario.finalQuiz.length;
+  const researchApproved = state.research.filter((item) => item.status === 'approved').length;
+  const researchPending = state.research.filter((item) => item.status !== 'approved').length;
 
   return (
     <div className="results-layout">
@@ -1711,8 +2010,11 @@ function ResultsPanel({
         <Stat label="Équipes" value={state.teams.length} />
         <Stat label="Joueurs" value={state.stats.playersTotal} />
         <Stat label="Quiz terminés" value={`${quizFinished}/${state.stats.playersTotal}`} />
-        <Stat label="Moyenne quiz" value={`${averageQuiz.toFixed(1)}/5`} />
+        <Stat label="Moyenne quiz" value={`${averageQuiz.toFixed(1)}/${quizTotal}`} />
+        <Stat label="Recherches validées" value={`${researchApproved}/${state.research.length}`} tone="success" />
+        <Stat label="Recherches à traiter" value={researchPending} tone="warning" />
         <Stat label="Messages d’entraide" value={supportive} tone="success" />
+        <Stat label="Sorties d’écran" value={state.focusEvents.length} tone="danger" />
         <Stat label="Messages bloqués" value={state.stats.blocked} tone="danger" />
       </div>
 
@@ -1753,7 +2055,7 @@ function ResultsPanel({
                     <td className="mono">{team.score}</td>
                     <td className="mono">{Math.min(team.currentRoom, team.totalRooms)}/{team.totalRooms}</td>
                     <td className="mono">{formatDuration(team.elapsedMs)}</td>
-                    <td>{quizAverage != null ? `${quizAverage.toFixed(1)}/5 (${quiz.length})` : '—'}</td>
+                    <td>{quizAverage != null ? `${quizAverage.toFixed(1)}/${quizTotal} (${quiz.length})` : '—'}</td>
                     <td>
                       <Badge tone={team.finishedAt ? 'success' : team.startedAt ? 'info' : 'neutral'}>
                         {teamStatusLabel(team.startedAt, team.finishedAt)}
@@ -1797,7 +2099,7 @@ function ResultsPanel({
                     <td>
                       {player.quizFinishedAt ? (
                         <Badge tone={(player.quizScore ?? 0) >= 3 ? 'success' : 'warning'}>
-                          {player.quizScore ?? 0}/5
+                          {player.quizScore ?? 0}/{quizTotal}
                         </Badge>
                       ) : (
                         <span className="fine-print">—</span>

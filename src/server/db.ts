@@ -93,6 +93,22 @@ db.exec(`
     PRIMARY KEY(player_id, question_id)
   );
 
+  CREATE TABLE IF NOT EXISTS research (
+    id TEXT PRIMARY KEY,
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    room_id TEXT NOT NULL,
+    player_id TEXT REFERENCES players(id) ON DELETE SET NULL,
+    text TEXT NOT NULL,
+    sources_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    comment TEXT,
+    verdict_json TEXT,
+    submitted_at INTEGER NOT NULL,
+    validated_at INTEGER,
+    UNIQUE(team_id, room_id)
+  );
+
   CREATE TABLE IF NOT EXISTS admin_sessions (
     id TEXT PRIMARY KEY,
     created_at INTEGER NOT NULL,
@@ -125,6 +141,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_team ON messages(team_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_messages_game ON messages(game_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_progress_team ON progress(team_id);
+  CREATE INDEX IF NOT EXISTS idx_research_team ON research(team_id, room_id);
   CREATE INDEX IF NOT EXISTS idx_events_game ON events(game_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_reports_game ON reports(game_id, created_at);
 `);

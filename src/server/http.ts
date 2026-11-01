@@ -44,6 +44,7 @@ import {
   setPlayerToken,
   startTeam,
   useHint,
+  validateResearchByTeacher,
 } from './game.js';
 import { getJevHealth, testJev } from './moderation/index.js';
 import { emitGameDeleted, emitMessageHidden, emitSessionReleased, emitTeamMessage, broadcastAdminState, broadcastGameStates } from './realtime.js';
@@ -106,6 +107,11 @@ const absentSchema = z.object({
 
 const muteSchema = z.object({
   minutes: z.number().int().min(0).max(60),
+});
+
+const researchValidateSchema = z.object({
+  approved: z.boolean(),
+  comment: z.string().max(500).optional(),
 });
 
 function parseBody<T>(schema: z.ZodType<T>, req: Request): T {
@@ -557,6 +563,23 @@ export function createApp(): express.Express {
     action((req, res) => {
       const game = requireGameRoute(String(req.params.id ?? ''));
       resolveReport(game.id, String(req.params.reportId ?? ''));
+      broadcastAdminState(game.id);
+      res.json({ ok: true });
+    }),
+  );
+
+  app.post(
+    '/api/admin/games/:id/research/:researchId/validate',
+    action((req, res) => {
+      const game = requireGameRoute(String(req.params.id ?? ''));
+      const body = parseBody(researchValidateSchema, req);
+      validateResearchByTeacher(
+        game.id,
+        String(req.params.researchId ?? ''),
+        body.approved,
+        body.comment,
+      );
+      broadcastGameStates(game.id);
       broadcastAdminState(game.id);
       res.json({ ok: true });
     }),

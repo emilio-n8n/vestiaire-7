@@ -1,44 +1,44 @@
 {
   "id": "dernier-match",
-  "version": 1,
+  "version": 2,
   "title": "Le Dernier Match",
   "subtitle": "La finale",
-  "durationMinutes": 45,
-  "intro": "Bienvenue dans Vestiaire 7.\n\nLe coach a disparu, le vestiaire est verrouillé, et le coup d'envoi de la finale est dans 45 minutes. Votre équipe doit traverser 5 salles pour retrouver le code du trophée.\n\nChaque joueur reçoit un indice différent. Personne ne peut avancer seul : le chat d'équipe est votre seul moyen de partager les indices.",
+  "durationMinutes": 135,
+  "sessionCount": 3,
+  "sessionTitles": [
+    "Séance 1 — Les bases du jeu",
+    "Séance 2 — Le monde du handball",
+    "Séance 3 — Le carnet du coach"
+  ],
+  "intro": "Bienvenue dans Vestiaire 7.\n\nLe coach a disparu, le vestiaire est verrouillé, et la finale approche. Pour le retrouver, votre équipe doit reconstituer son carnet : 10 salles, 5 défis automatiques et 5 enquêtes sur le monde du handball.\n\nCertaines salles sont verrouillées : si un joueur quitte l'écran, la salle se réinitialise. Les salles de recherche, elles, vous ouvrent le web : citez vos sources, comparez-les, écrivez avec vos mots. Jev lit vos recherches, et le professeur peut intervenir.\n\nChaque joueur reçoit un indice différent. Le chat d'équipe est votre seul moyen de partager les indices et les trouvailles.",
   "rules": [
     "Chaque joueur voit un indice différent.",
-    "Partagez vos indices dans le chat d'équipe.",
-    "Jev vérifie chaque message avant sa publication.",
-    "Le professeur peut lire le chat et intervenir."
+    "Partagez vos indices et vos recherches dans le chat d'équipe.",
+    "Salles verrouillées : restez sur l'écran, sinon la salle se réinitialise.",
+    "Salles de recherche : citez au moins 2 sources et écrivez avec vos mots.",
+    "Jev vérifie les messages et valide les recherches ; le professeur peut intervenir.",
+    "Trois séances : le professeur peut mettre en pause entre chaque."
   ],
   "rooms": [
     {
       "id": "vestiaire",
       "title": "Le vestiaire",
       "subtitle": "Salle 1 · Les règles d'or",
+      "session": 1,
+      "lock": "focus",
       "narrative": "Le coach a disparu. Sur le tableau blanc, trois mots sont entourés : PAS, SECONDES, BALLON.\n\nEn dessous, une phrase : « Le compte est bon, mais lequel ? » La porte est verrouillée par un cadenas à un chiffre.",
       "questions": [
         {
           "id": "v1",
           "prompt": "Combien de pas maximum peut-on faire avec le ballon en main ?",
-          "options": [
-            "2 pas",
-            "3 pas",
-            "4 pas",
-            "5 pas"
-          ],
+          "options": ["2 pas", "3 pas", "4 pas", "5 pas"],
           "correct": 1,
           "explanation": "3 pas maximum. Au-delà, l'arbitre siffle."
         },
         {
           "id": "v2",
           "prompt": "Combien de secondes peut-on garder le ballon sans dribbler, passer ou tirer ?",
-          "options": [
-            "2 secondes",
-            "3 secondes",
-            "5 secondes",
-            "10 secondes"
-          ],
+          "options": ["2 secondes", "3 secondes", "5 secondes", "10 secondes"],
           "correct": 1,
           "explanation": "3 secondes maximum. Ensuite, il faut dribbler, passer ou tirer."
         }
@@ -58,6 +58,8 @@
       "id": "table-de-marque",
       "title": "La table de marque",
       "subtitle": "Salle 2 · Le chrono bloqué",
+      "session": 1,
+      "lock": "focus",
       "narrative": "La table de marque est déserte. Le chrono est bloqué sur 2:00. Un carton jaune traîne sur le bureau.\n\nPour sortir, il faut comprendre ce que signifie cette exclusion.",
       "questions": [
         {
@@ -100,29 +102,21 @@
       "id": "terrain",
       "title": "Le terrain",
       "subtitle": "Salle 3 · Le plan déchiré",
+      "session": 1,
+      "lock": "focus",
       "narrative": "Le plan du terrain est déchiré. Quatre morceaux ont été distribués aux joueurs.\n\nPour le reconstituer, il faut savoir combien de joueurs entrent sur le terrain.",
       "questions": [
         {
           "id": "p1",
           "prompt": "Combien de joueurs compte une équipe sur le terrain ?",
-          "options": [
-            "5 joueurs",
-            "6 joueurs",
-            "7 joueurs",
-            "8 joueurs"
-          ],
+          "options": ["5 joueurs", "6 joueurs", "7 joueurs", "8 joueurs"],
           "correct": 2,
           "explanation": "7 joueurs : 6 joueurs de champ + 1 gardien."
         },
         {
           "id": "p2",
           "prompt": "Combien de joueurs de champ (hors gardien) ?",
-          "options": [
-            "5 joueurs",
-            "6 joueurs",
-            "7 joueurs",
-            "8 joueurs"
-          ],
+          "options": ["5 joueurs", "6 joueurs", "7 joueurs", "8 joueurs"],
           "correct": 1,
           "explanation": "6 joueurs de champ + le gardien = 7."
         }
@@ -142,17 +136,14 @@
       "id": "zone",
       "title": "La zone",
       "subtitle": "Salle 4 · Les lignes effacées",
+      "session": 1,
+      "lock": "focus",
       "narrative": "Les lignes du terrain ont été effacées. Le gardien tourne en rond.\n\nRetrouve la distance qui délimite sa zone.",
       "questions": [
         {
           "id": "z1",
           "prompt": "À quelle distance du but se trouve la ligne de zone du gardien ?",
-          "options": [
-            "4 mètres",
-            "6 mètres",
-            "7 mètres",
-            "9 mètres"
-          ],
+          "options": ["4 mètres", "6 mètres", "7 mètres", "9 mètres"],
           "correct": 1,
           "explanation": "La zone du gardien est à 6 mètres du but."
         },
@@ -184,31 +175,23 @@
       "id": "coup-franc",
       "title": "Le coup franc",
       "subtitle": "Salle 5 · Le dernier tir",
-      "narrative": "Dernière salle. Un coup franc est sifflé à 9 mètres. Le trophée est derrière la porte.\n\nLe coach a laissé un dernier message : « La vraie force, c'est l'équipe. »",
+      "session": 1,
+      "lock": "focus",
+      "narrative": "Dernière salle des bases. Un coup franc est sifflé à 9 mètres. Le trophée est derrière la porte.\n\nLe coach a laissé un dernier message : « La vraie force, c'est l'équipe. »",
       "questions": [
         {
           "id": "c1",
           "prompt": "À quelle distance se tire un coup franc ?",
-          "options": [
-            "6 mètres",
-            "7 mètres",
-            "9 mètres",
-            "11 mètres"
-          ],
+          "options": ["6 mètres", "7 mètres", "9 mètres", "11 mètres"],
           "correct": 2,
           "explanation": "Le coup franc se tire à 9 mètres du but."
         },
         {
           "id": "c2",
-          "prompt": "Quelle valeur est la plus importante pour gagner ensemble ?",
-          "options": [
-            "La vitesse",
-            "Le respect et la solidarité",
-            "La force physique",
-            "Le hasard"
-          ],
+          "prompt": "À quelle distance se tire un jet de 7 mètres ?",
+          "options": ["6 mètres", "7 mètres", "9 mètres", "11 mètres"],
           "correct": 1,
-          "explanation": "Le respect, la solidarité et l'entraide font gagner une équipe."
+          "explanation": "Le jet de 7 mètres se tire... à 7 mètres, face au but."
         }
       ],
       "exitPrompt": "Quel chiffre ouvre la porte du trophée ? (la distance du coup franc)",
@@ -218,31 +201,259 @@
         "Le coup franc se tire à 9 mètres.",
         "Le jet de 7 mètres, lui, se tire à 7 mètres.",
         "Le coach a écrit : « La vraie force, c'est l'équipe. »",
-        "Le dernier chiffre est le plus grand des cinq."
+        "Le dernier chiffre de la séance 1 est le plus grand des cinq."
       ],
-      "success": "La porte s'ouvre sur le trophée. Il ne reste plus qu'à assembler les cinq chiffres."
+      "success": "La porte s'ouvre sur le trophée. Mais le carnet du coach est incomplet : il manque les pages du monde du handball."
+    },
+    {
+      "id": "musee",
+      "title": "Le musée",
+      "subtitle": "Salle 6 · La frise du temps",
+      "session": 2,
+      "lock": "open",
+      "narrative": "La première page du carnet est une frise du temps. Le coach y a écrit : « Le handball n'est pas né hier. »\n\nÀ vous de reconstituer les origines et le passage au handball indoor. Cette salle ouvre le web : cherchez, comparez, citez.",
+      "questions": [
+        {
+          "id": "m1",
+          "prompt": "En quelle année le handball indoor est-il entré aux Jeux olympiques ?",
+          "options": ["1936", "1972", "1984"],
+          "correct": 1,
+          "explanation": "Le handball indoor devient olympique aux Jeux de Munich, en 1972."
+        }
+      ],
+      "research": {
+        "prompt": "Reconstituez la frise du handball : origines, passage au handball indoor, première apparition olympique. Expliquez pourquoi le handball est devenu un sport indoor.",
+        "instructions": "Citez 2 sources (URL ou titre). Écrivez 120 à 300 mots avec vos mots. Comparez deux sources : que disent-elles de la même période ? Jev vérifie votre synthèse ; le professeur peut intervenir.",
+        "minWords": 120,
+        "maxWords": 300,
+        "sourcesRequired": 2,
+        "resources": [
+          {
+            "title": "FFHandball — Histoire du handball",
+            "url": "https://www.ffhandball.fr/",
+            "excerpt": "Le handball trouve ses racines dans les jeux de balle européens de la fin du XIXe siècle. Le handball à 11 (field handball) précède le handball indoor à 7."
+          },
+          {
+            "title": "CIO — Le handball aux Jeux",
+            "url": "https://olympics.com/fr/sports/handball/",
+            "excerpt": "Le handball indoor fait son entrée olympique à Munich en 1972. Le handball féminin suit à Montréal en 1976."
+          },
+          {
+            "title": "Wikipédia — Handball",
+            "url": "https://fr.wikipedia.org/wiki/Handball",
+            "excerpt": "Le handball moderne se joue à 7 contre 7, en salle. Il s'est développé en Europe du Nord au début du XXe siècle."
+          }
+        ]
+      },
+      "exitPrompt": "Quel chiffre complète la frise ? (le dernier chiffre de l'année des JO)",
+      "exitCode": "2",
+      "hint": "Munich, 1972 : le dernier chiffre de l'année est 2.",
+      "clues": [
+        "Le handball indoor est olympique depuis les Jeux de Munich.",
+        "Cherchez « handball aux Jeux olympiques » sur le site du CIO.",
+        "Le code est le dernier chiffre de l'année.",
+        "Citez deux sources dans votre recherche."
+      ],
+      "success": "La frise s'illumine. Une phrase apparaît : « Le handball a voyagé, mais l'esprit d'équipe est resté. »"
+    },
+    {
+      "id": "legendes",
+      "title": "Les légendes",
+      "subtitle": "Salle 7 · Le mur des portraits",
+      "session": 2,
+      "lock": "open",
+      "narrative": "Le mur est couvert de portraits. Le coach a écrit : « Derrière chaque titre, il y a des femmes et des hommes. »\n\nChoisissez une légende du handball et racontez-la. Puis trouvez le chiffre qui ouvre le mur.",
+      "questions": [
+        {
+          "id": "l1",
+          "prompt": "Combien de titres olympiques l'équipe de France masculine a-t-elle gagnés ?",
+          "options": ["1 titre", "2 titres", "3 titres"],
+          "correct": 2,
+          "explanation": "La France masculine a gagné 3 titres olympiques : 2008, 2012 et 2020."
+        }
+      ],
+      "research": {
+        "prompt": "Choisissez un joueur ou une joueuse qui a marqué l'histoire du handball. Présentez son parcours, un exploit et une valeur qu'il ou elle incarne.",
+        "instructions": "Citez 2 sources. Écrivez 120 à 300 mots avec vos mots. Ne recopiez pas une fiche : racontez ce qui vous a marqué et pourquoi. Jev vérifie ; le professeur peut intervenir.",
+        "minWords": 120,
+        "maxWords": 300,
+        "sourcesRequired": 2,
+        "resources": [
+          {
+            "title": "FFHandball — Équipe de France",
+            "url": "https://www.ffhandball.fr/",
+            "excerpt": "Les Experts ont marqué l'histoire du handball français. Cherchez les joueurs et joueuses qui ont porté le maillot bleu."
+          },
+          {
+            "title": "CIO — Les légendes du handball",
+            "url": "https://olympics.com/fr/",
+            "excerpt": "Des portraits et des palmarès de grands noms du handball mondial."
+          }
+        ]
+      },
+      "exitPrompt": "Quel chiffre ouvre le mur des portraits ? (le nombre de titres olympiques français)",
+      "exitCode": "3",
+      "hint": "La France a gagné 3 titres olympiques masculins : 2008, 2012, 2020.",
+      "clues": [
+        "Les Experts ont marqué les années 2000-2010.",
+        "Le code est le nombre de titres olympiques.",
+        "Un joueur, un club, une valeur.",
+        "Citez deux sources dans votre portrait."
+      ],
+      "success": "Le mur s'ouvre sur un portrait. Une voix : « Une légende, c'est une équipe derrière un joueur. »"
+    },
+    {
+      "id": "club-local",
+      "title": "Le club d'à côté",
+      "subtitle": "Salle 8 · Le handball près de chez vous",
+      "session": 2,
+      "lock": "open",
+      "narrative": "Le coach a collé une carte de la région. « Le handball ne vit pas seulement à la télévision », a-t-il écrit.\n\nTrouvez le club le plus proche de votre établissement. Rencontrez-le, même virtuellement.",
+      "questions": [
+        {
+          "id": "b1",
+          "prompt": "Combien de joueurs sur le terrain dans une équipe senior ?",
+          "options": ["6 joueurs", "7 joueurs", "8 joueurs"],
+          "correct": 1,
+          "explanation": "7 joueurs, gardien compris."
+        }
+      ],
+      "research": {
+        "prompt": "Trouvez le club de handball le plus proche de votre établissement. Présentez son histoire, ses équipes et une valeur du club. Si possible, posez deux questions à un licencié ou à un coach.",
+        "instructions": "Citez 2 sources (site du club, fédération, article local). Écrivez 120 à 300 mots avec vos mots. Cette réponse est locale : elle ne se trouve pas telle quelle sur un site généraliste. Jev vérifie la structure ; le professeur peut intervenir.",
+        "minWords": 120,
+        "maxWords": 300,
+        "sourcesRequired": 2,
+        "resources": [
+          {
+            "title": "FFHandball — Trouver un club",
+            "url": "https://www.ffhandball.fr/",
+            "excerpt": "Utilisez la carte des clubs et l'annuaire de la fédération pour trouver le club le plus proche."
+          },
+          {
+            "title": "Le club de ta ville",
+            "excerpt": "Cherche le site officiel du club, ses équipes, ses résultats et ses valeurs. Un article local ou une interview peut compléter."
+          }
+        ]
+      },
+      "exitPrompt": "Quel chiffre ouvre la carte ? (le nombre de joueurs sur le terrain)",
+      "exitCode": "7",
+      "hint": "Une équipe senior joue à 7. Le code est 7.",
+      "clues": [
+        "Le club le plus proche de ton établissement.",
+        "Combien d'équipes ? Quelles catégories ?",
+        "Le code est le nombre de joueurs sur le terrain.",
+        "Citez deux sources dans votre présentation."
+      ],
+      "success": "La carte s'ouvre sur un club. Une phrase : « Ici aussi, on joue ensemble. »"
+    },
+    {
+      "id": "match",
+      "title": "Le match",
+      "subtitle": "Salle 9 · L'analyse vidéo",
+      "session": 2,
+      "lock": "open",
+      "narrative": "Un écran s'allume. Le coach a laissé un extrait de match et trois questions : « Regardez, doutez, justifiez. »\n\nLe lien de la vidéo est dans les ressources. Le professeur peut le remplacer.",
+      "questions": [
+        {
+          "id": "x1",
+          "prompt": "Dans l'extrait fourni, quel joueur marque le dernier but ?",
+          "options": ["Le numéro 3", "Le numéro 5", "Le numéro 9"],
+          "correct": 1,
+          "explanation": "Le numéro 5 marque le dernier but de l'extrait."
+        }
+      ],
+      "research": {
+        "prompt": "Regardez l'extrait vidéo. Repérez trois décisions d'arbitrage ou actions tactiques et justifiez-les avec les règles du handball.",
+        "instructions": "Citez 2 sources (règles FFHandball, article, analyse vidéo). Écrivez 120 à 300 mots. Décrivez ce que vous voyez avant de juger. Jev vérifie ; le professeur peut intervenir.",
+        "minWords": 120,
+        "maxWords": 300,
+        "sourcesRequired": 2,
+        "resources": [
+          {
+            "title": "Extrait vidéo",
+            "excerpt": "Le professeur ajoute ici le lien vers l'extrait choisi (match, action, ralenti)."
+          },
+          {
+            "title": "FFHandball — Règles",
+            "url": "https://www.ffhandball.fr/",
+            "excerpt": "Le règlement officiel permet de vérifier les sanctions, les 3 pas, les 3 secondes et les zones."
+          }
+        ]
+      },
+      "exitPrompt": "Quel chiffre ouvre l'écran ? (le numéro du buteur)",
+      "exitCode": "5",
+      "hint": "Le numéro 5 marque le dernier but. Le code est 5.",
+      "clues": [
+        "Regardez le numéro 5.",
+        "Une décision d'arbitrage, une tactique, une valeur.",
+        "Le code est le numéro du buteur.",
+        "Citez deux sources dans votre analyse."
+      ],
+      "success": "L'écran s'éteint. Une phrase : « Bien juger, c'est d'abord bien regarder. »"
+    },
+    {
+      "id": "finale",
+      "title": "La finale",
+      "subtitle": "Salle 10 · Le carnet du coach",
+      "session": 3,
+      "lock": "open",
+      "narrative": "La dernière page est vide. Le coach a laissé un stylo et une consigne : « Le handball, c'est... »\n\nVotre équipe doit écrire le pitch qui convaincra un camarade de rejoindre le handball. Trois valeurs, trois sources, une vraie voix.",
+      "questions": [
+        {
+          "id": "f1",
+          "prompt": "Combien de valeurs votre pitch doit-il mettre en avant ?",
+          "options": ["2 valeurs", "3 valeurs", "4 valeurs"],
+          "correct": 1,
+          "explanation": "Trois valeurs : par exemple respect, solidarité, engagement."
+        }
+      ],
+      "research": {
+        "prompt": "Créez le pitch/affiche « Le handball, c'est... » : 200 à 450 mots, trois valeurs, trois sources, et une phrase qui donne envie de rejoindre une équipe.",
+        "instructions": "Citez 3 sources. Écrivez 200 à 450 mots avec vos mots. Le pitch doit être personnel : ce que votre équipe a découvert, pas une fiche toute faite. Jev vérifie ; le professeur peut intervenir.",
+        "minWords": 200,
+        "maxWords": 450,
+        "sourcesRequired": 3,
+        "resources": [
+          {
+            "title": "Modèle de pitch",
+            "excerpt": "Accroche (1 phrase) → 3 valeurs illustrées par des exemples → 3 sources → appel à l'action."
+          },
+          {
+            "title": "FFHandball — Les valeurs",
+            "url": "https://www.ffhandball.fr/",
+            "excerpt": "Respect, solidarité, engagement : les valeurs du handball se vivent dans le club et sur le terrain."
+          }
+        ]
+      },
+      "exitPrompt": "Quel chiffre ouvre le carnet ? (le nombre de valeurs du pitch)",
+      "exitCode": "3",
+      "hint": "Le pitch cite 3 valeurs. Le code est 3.",
+      "clues": [
+        "Trois valeurs : respect, solidarité, engagement.",
+        "Trois sources.",
+        "Le code est le nombre de valeurs.",
+        "Le pitch doit convaincre."
+      ],
+      "success": "Le carnet se referme. Le coach apparaît : « Vous avez gagné ensemble. »"
     }
   ],
   "final": {
-    "prompt": "Entre les cinq chiffres dans l'ordre des salles : vestiaire, table de marque, terrain, zone, coup franc.",
-    "code": "32769",
+    "prompt": "Entre les dix chiffres dans l'ordre des salles, du vestiaire à la finale.",
+    "code": "3276923753",
     "success": "Le trophée s'ouvre. Le coach apparaît : « Vous avez gagné ensemble. »"
   },
-  "finalQuizIntro": "Réponds seul aux 5 questions. Ce n'est pas une note d'équipe : c'est ton bilan individuel.",
+  "finalQuizIntro": "Réponds seul aux 10 questions. Ce n'est pas une note d'équipe : c'est ton bilan individuel. Reste sur l'écran : si tu le quittes, la réponse en cours est annulée.",
   "finalQuiz": [
     {
-      "id": "f1",
+      "id": "q1",
       "prompt": "Combien de pas maximum peut-on faire avec le ballon en main ?",
-      "options": [
-        "2 pas",
-        "3 pas",
-        "4 pas"
-      ],
+      "options": ["2 pas", "3 pas", "4 pas"],
       "correct": 1,
       "explanation": "3 pas maximum."
     },
     {
-      "id": "f2",
+      "id": "q2",
       "prompt": "Que signifie une exclusion de 2 minutes ?",
       "options": [
         "Le joueur sort et son équipe joue à 6",
@@ -253,37 +464,60 @@
       "explanation": "Le joueur sort 2 minutes ; l'équipe joue à 6."
     },
     {
-      "id": "f3",
+      "id": "q3",
       "prompt": "Combien de joueurs sur le terrain par équipe ?",
-      "options": [
-        "6 joueurs",
-        "7 joueurs",
-        "8 joueurs"
-      ],
+      "options": ["6 joueurs", "7 joueurs", "8 joueurs"],
       "correct": 1,
       "explanation": "7 joueurs, gardien compris."
     },
     {
-      "id": "f4",
+      "id": "q4",
       "prompt": "À quelle distance se trouve la zone du gardien ?",
-      "options": [
-        "6 mètres",
-        "7 mètres",
-        "9 mètres"
-      ],
+      "options": ["6 mètres", "7 mètres", "9 mètres"],
       "correct": 0,
       "explanation": "6 mètres."
     },
     {
-      "id": "f5",
+      "id": "q5",
       "prompt": "À quelle distance se tire un coup franc ?",
-      "options": [
-        "7 mètres",
-        "9 mètres",
-        "11 mètres"
-      ],
+      "options": ["7 mètres", "9 mètres", "11 mètres"],
       "correct": 1,
       "explanation": "9 mètres."
+    },
+    {
+      "id": "q6",
+      "prompt": "En quelle année le handball indoor est-il entré aux JO ?",
+      "options": ["1936", "1972", "1984"],
+      "correct": 1,
+      "explanation": "Munich, 1972."
+    },
+    {
+      "id": "q7",
+      "prompt": "Combien de titres olympiques l'équipe de France masculine a-t-elle gagnés ?",
+      "options": ["1", "2", "3"],
+      "correct": 2,
+      "explanation": "3 titres : 2008, 2012, 2020."
+    },
+    {
+      "id": "q8",
+      "prompt": "Quel poste joue au cœur de la défense, près de la zone ?",
+      "options": ["L'ailier", "Le pivot", "Le gardien"],
+      "correct": 1,
+      "explanation": "Le pivot joue près de la zone, au cœur de la défense."
+    },
+    {
+      "id": "q9",
+      "prompt": "Que doit faire un joueur qui a épuisé ses 3 pas ?",
+      "options": ["Passer ou tirer", "Dribbler encore", "Sortir du terrain"],
+      "correct": 0,
+      "explanation": "Il doit passer ou tirer ; sinon, l'arbitre siffle."
+    },
+    {
+      "id": "q10",
+      "prompt": "Quelle valeur est la plus importante pour gagner ensemble ?",
+      "options": ["La vitesse", "Le respect et la solidarité", "La force physique"],
+      "correct": 1,
+      "explanation": "Le respect, la solidarité et l'entraide font gagner une équipe."
     }
   ]
 }

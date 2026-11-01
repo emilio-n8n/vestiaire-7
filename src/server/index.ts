@@ -6,7 +6,8 @@ import { createApp, errorHandler } from './http.js';
 import { initRealtime, getIo } from './realtime.js';
 import { logger } from './logger.js';
 import { cleanupAdminSessions } from './auth.js';
-import { cleanupOldGames } from './game.js';
+import { cleanupLegacyGames, cleanupOldGames } from './game.js';
+import { focus } from './focus.js';
 import { presence } from './presence.js';
 import { closeDb } from './db.js';
 
@@ -40,6 +41,8 @@ app.use(errorHandler);
 cleanupAdminSessions();
 const removed = cleanupOldGames();
 if (removed > 0) logger.info({ removed }, 'parties anciennes supprimées');
+const legacy = cleanupLegacyGames();
+if (legacy > 0) logger.warn({ legacy }, 'parties au format de scénario obsolète supprimées');
 setInterval(
   () => {
     cleanupAdminSessions();
@@ -60,6 +63,7 @@ function shutdown(signal: string): void {
   logger.info({ signal }, 'arrêt du serveur');
   getIo()?.close();
   presence.shutdown();
+  focus.shutdown();
   server.close(() => {
     closeDb();
     process.exit(0);

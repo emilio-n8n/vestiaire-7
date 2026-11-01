@@ -98,6 +98,12 @@ export function usePlayerSocket(code: string, session: PlayerSession) {
     socket.on('toast', (payload) => {
       push(payload.type, payload.message);
     });
+    socket.on('focus:lost', (payload) => {
+      push(
+        'error',
+        `${payload.playerName || 'Un joueur'} a quitté l’écran : la salle s’est verrouillée. Reprenez-la ensemble.`,
+      );
+    });
     socket.on('session:released', (payload) => {
       clearSession(code);
       setFatal(payload.message);

@@ -4,14 +4,14 @@ import { loadScenario, playerClues, allQuestionsCorrect, type RoomProgress } fro
 describe('scénario', () => {
   const scenario = loadScenario();
 
-  it('charge 5 salles et un code final cohérent', () => {
-    expect(scenario.rooms).toHaveLength(5);
+  it('charge 10 salles et un code final cohérent', () => {
+    expect(scenario.rooms).toHaveLength(10);
     expect(scenario.rooms.map((room) => room.exitCode).join('')).toBe(scenario.final.code);
-    expect(scenario.final.code).toBe('32769');
+    expect(scenario.final.code).toBe('3276923753');
   });
 
-  it('a un quiz individuel de 5 questions', () => {
-    expect(scenario.finalQuiz).toHaveLength(5);
+  it('a un quiz individuel de 10 questions', () => {
+    expect(scenario.finalQuiz).toHaveLength(10);
     for (const question of scenario.finalQuiz) {
       expect(question.options.length).toBeGreaterThanOrEqual(2);
       expect(question.correct).toBeLessThan(question.options.length);
@@ -34,6 +34,18 @@ describe('scénario', () => {
   it('donne toutes les clues à un joueur seul', () => {
     const room = scenario.rooms[0];
     expect(playerClues(room, 0, 1)).toHaveLength(4);
+  });
+
+  it('a 5 salles verrouillées et 5 salles de recherche', () => {
+    expect(scenario.rooms.filter((room) => room.lock === 'focus')).toHaveLength(5);
+    expect(scenario.rooms.filter((room) => Boolean(room.research))).toHaveLength(5);
+    expect(scenario.rooms.filter((room) => room.lock === 'focus').every((room) => !room.research)).toBe(true);
+  });
+
+  it('répartit les salles sur 3 séances', () => {
+    expect(scenario.sessionCount).toBe(3);
+    expect(scenario.sessionTitles).toHaveLength(3);
+    expect(new Set(scenario.rooms.map((room) => room.session))).toEqual(new Set([1, 2, 3]));
   });
 
   it('vérifie que toutes les questions d’une salle sont correctes', () => {

@@ -1,8 +1,12 @@
 import type {
+  AdminFocus,
   AdminMessage,
+  AdminResearch,
   AdminState,
   AdminTeam,
   CreateGameInput,
+  FocusEvent,
+  FocusState,
   GameListItem,
   GameStatus,
   MessageStatus,
@@ -11,12 +15,17 @@ import type {
   PlayerState,
   PlayerStatus,
   QuizQuestionState,
+  ResearchState,
+  ResearchSubmission,
+  ResearchVerdict,
   TeamColor,
 } from '../shared/types.js';
 import { canStartTeam } from '../shared/gate.js';
+import { parseScenario } from '../shared/scenario.js';
 import { config } from './config.js';
 import { db, withTransaction } from './db.js';
-import { getJevHealth } from './moderation/index.js';
+import { focus } from './focus.js';
+import { getJevHealth, validateResearch } from './moderation/index.js';
 import {
   allQuestionsCorrect,
   findRoom,
@@ -28,7 +37,7 @@ import {
   solution,
   type RoomProgress,
 } from './scenario.js';
-import type { Scenario } from '../shared/scenario.js';
+import type { Scenario, ScenarioRoom } from '../shared/scenario.js';
 import { clamp, formatDuration, normalizeCode, normalizeText, now, randomCode, randomId, randomPin, toCsv } from './util.js';
 
 interface GameRow {
@@ -118,6 +127,23 @@ interface ReportRow {
   resolved: number;
   player_name?: string;
   team_id?: string;
+  team_name?: string;
+}
+
+interface ResearchRow {
+  id: string;
+  game_id: string;
+  team_id: string;
+  room_id: string;
+  player_id: string | null;
+  text: string;
+  sources_json: string;
+  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  verdict_json: string | null;
+  submitted_at: number;
+  validated_at: number | null;
+  player_name?: string;
   team_name?: string;
 }
 
@@ -270,6 +296,7 @@ export function pauseGame(gameId: string): GameRow {
   const game = requireGame(gameId);
   if (game.status !== 'live') throw new Error('La partie n’est pas en cours.');
   db.prepare("UPDATE games SET status = 'paused', paused_at = ? WHERE id = ?").run(now(), gameId);
+  for (const team of getTeams(gameId)) focus.clearTeam(team.id);
   logEvent(gameId, null, null, 'game.paused');
   return requireGame(gameId);
 }
@@ -304,6 +331,7 @@ export function endGame(gameId: string): GameRow {
       ).run(pauseDuration, gameId);
     }
     db.prepare("UPDATE games SET status = 'ended', ended_at = ?, paused_at = NULL WHERE id = ?").run(endedAt, gameId);
+    for (const team of getTeams(gameId)) focus.clearTeam(team.id);
     logEvent(gameId, null, null, 'game.ended');
   });
   return requireGame(gameId);
@@ -336,10 +364,14 @@ export function submitAnswer(
   roomId: string,
   questionId: string,
   option: number,
+  focusActive = false,
 ): { correct: boolean; already: boolean; explanation: string; allQuestionsCorrect: boolean } {
   const { game, team, player, scenario, room } = requirePlayingContext(gameId, teamId, playerId);
   if (team.current_room !== scenario.rooms.findIndex((r) => r.id === room.id)) {
     throw new Error('Cette salle n’est plus la salle actuelle.');
+  }
+  if (room.lock === 'focus' && !focusActive) {
+    throw new Error('Le mode verrouillé doit être actif : tous les joueurs doivent rester sur l’écran.');
   }
   const question = room.questions.find((q) => q.id === questionId);
   if (!question) throw new Error('Question inconnue.');
@@ -385,14 +417,24 @@ export function submitExitCode(
   playerId: string,
   roomId: string,
   code: string,
+  focusActive = false,
 ): { correct: boolean; already: boolean } {
   const { game, team, player, scenario, room } = requirePlayingContext(gameId, teamId, playerId);
   const roomIndex = scenario.rooms.findIndex((r) => r.id === room.id);
   if (team.current_room !== roomIndex) throw new Error('Cette salle n’est plus la salle actuelle.');
+  if (room.lock === 'focus' && !focusActive) {
+    throw new Error('Le mode verrouillé doit être actif : tous les joueurs doivent rester sur l’écran.');
+  }
   const progress = getOrCreateProgress(teamId, roomId);
   if (progress.solvedAt) return { correct: true, already: true };
   if (!allQuestionsCorrect(room, progress)) {
     throw new Error('Réponds d’abord aux questions de la salle.');
+  }
+  if (room.research) {
+    const research = getResearchRow(teamId, room.id);
+    if (research?.status !== 'approved') {
+      throw new Error('La recherche doit être validée par Jev (ou par le professeur) avant le code.');
+    }
   }
   const correct = normalizeCode(code) === room.exitCode;
   if (!correct) {
@@ -415,6 +457,7 @@ export function submitExitCode(
     insertSystemMessage(gameId, teamId, `Salle ${roomIndex + 1} résolue. ${room.success}`);
     logEvent(gameId, teamId, player.id, 'room.solved', { roomId, roomIndex });
   });
+  focus.clearTeam(teamId);
   return { correct: true, already: false };
 }
 
@@ -478,13 +521,17 @@ export function submitQuizAnswer(
   playerId: string,
   questionId: string,
   option: number,
-): { correct: boolean; explanation: string; score: number; finished: boolean } {
+  focusActive = false,
+): { correct: boolean; explanation: string; score: number; finished: boolean; total: number } {
   const game = requireGame(gameId);
   const player = getPlayerInGame(gameId, playerId);
   if (!player || player.status !== 'active') throw new Error('Joueur inconnu.');
   const team = requireTeam(player.team_id);
   if (!team.finished_at) throw new Error('Le quiz individuel est disponible après la fin de l’escape.');
   if (player.quiz_finished_at) throw new Error('Ton quiz est déjà terminé.');
+  if (!focusActive) {
+    throw new Error('Reste sur l’écran pendant le quiz : le mode verrouillé doit être actif.');
+  }
   const scenario = scenarioForGame(game.scenario_json);
   const question = scenario.finalQuiz.find((q) => q.id === questionId);
   if (!question) throw new Error('Question inconnue.');
@@ -500,6 +547,7 @@ export function submitQuizAnswer(
       explanation: question.explanation,
       score: countQuizScore(playerId),
       finished: false,
+      total: scenario.finalQuiz.length,
     };
   }
   const correct = option === question.correct;
@@ -514,9 +562,158 @@ export function submitQuizAnswer(
   const finished = answers.length >= scenario.finalQuiz.length;
   if (finished) {
     db.prepare('UPDATE players SET quiz_score = ?, quiz_finished_at = ? WHERE id = ?').run(score, now(), playerId);
+    focus.clearTeam(`quiz:${playerId}`);
     logEvent(gameId, player.team_id, playerId, 'quiz.finished', { score });
   }
-  return { correct, explanation: question.explanation, score, finished };
+  return { correct, explanation: question.explanation, score, finished, total: scenario.finalQuiz.length };
+}
+
+export async function submitResearch(
+  gameId: string,
+  teamId: string,
+  playerId: string,
+  roomId: string,
+  text: string,
+  sources: string[],
+): Promise<ResearchRow> {
+  const { team, player, scenario, room } = requirePlayingContext(gameId, teamId, playerId);
+  if (!room.research) throw new Error('Cette salle n’a pas de recherche.');
+  if (team.current_room !== scenario.rooms.findIndex((r) => r.id === room.id)) {
+    throw new Error('Cette salle n’est plus la salle actuelle.');
+  }
+  const clean = normalizeText(text).slice(0, 6000);
+  const words = countWords(clean);
+  if (words < room.research.minWords) {
+    throw new Error(`Développe ta recherche : ${room.research.minWords} mots minimum (${words} pour l’instant).`);
+  }
+  if (words > room.research.maxWords) {
+    throw new Error(`Ta recherche est trop longue : ${room.research.maxWords} mots maximum (${words} pour l’instant).`);
+  }
+  const cleanSources = sources
+    .map((source) => normalizeText(source).slice(0, 300))
+    .filter(Boolean)
+    .slice(0, 4);
+  if (cleanSources.length < room.research.sourcesRequired) {
+    throw new Error(`Cite au moins ${room.research.sourcesRequired} sources vérifiables.`);
+  }
+
+  const researchId = randomId();
+  const submittedAt = now();
+  db.prepare(
+    `INSERT INTO research (id, game_id, team_id, room_id, player_id, text, sources_json, status, submitted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+     ON CONFLICT(team_id, room_id) DO UPDATE SET
+       id = excluded.id,
+       player_id = excluded.player_id,
+       text = excluded.text,
+       sources_json = excluded.sources_json,
+       status = 'pending',
+       comment = NULL,
+       verdict_json = NULL,
+       submitted_at = excluded.submitted_at,
+       validated_at = NULL`,
+  ).run(researchId, gameId, teamId, room.id, player.id, clean, JSON.stringify(cleanSources), submittedAt);
+
+  const result = await validateResearch({
+    roomTitle: room.title,
+    prompt: room.research.prompt,
+    instructions: room.research.instructions,
+    text: clean,
+    sources: cleanSources,
+    teamName: team.name,
+    playerName: player.name,
+    minWords: room.research.minWords,
+    maxWords: room.research.maxWords,
+    sourcesRequired: room.research.sourcesRequired,
+  });
+
+  const status = result.error
+    ? 'pending'
+    : result.verdict.approved
+      ? 'approved'
+      : 'rejected';
+  const comment = result.error
+    ? 'Jev est indisponible : le professeur doit relire cette recherche.'
+    : result.verdict.reasons.join(' ');
+  const validatedAt = now();
+  db.prepare(
+    `UPDATE research
+     SET status = ?, comment = ?, verdict_json = ?, validated_at = ?
+     WHERE team_id = ? AND room_id = ?`,
+  ).run(status, comment, JSON.stringify(result.verdict), validatedAt, teamId, room.id);
+  insertSystemMessage(
+    gameId,
+    teamId,
+    status === 'approved'
+      ? 'Recherche validée par Jev.'
+      : status === 'rejected'
+        ? 'Recherche à revoir : Jev a laissé des conseils.'
+        : 'Recherche envoyée : le professeur doit la relire.',
+  );
+  logEvent(gameId, teamId, player.id, 'research.submitted', {
+    roomId: room.id,
+    status,
+    score: result.verdict.score,
+    latencyMs: result.latencyMs,
+  });
+  return getResearchRow(teamId, room.id) as ResearchRow;
+}
+
+export function validateResearchByTeacher(
+  gameId: string,
+  researchId: string,
+  approved: boolean,
+  comment?: string,
+): ResearchRow {
+  const row = db.prepare('SELECT * FROM research WHERE id = ? AND game_id = ?').get(researchId, gameId) as
+    | ResearchRow
+    | undefined;
+  if (!row) throw new Error('Recherche inconnue.');
+  const status = approved ? 'approved' : 'rejected';
+  const finalComment = normalizeText(comment ?? '').slice(0, 500) || (approved
+    ? 'Recherche validée par le professeur.'
+    : 'Recherche à revoir : le professeur a laissé une consigne.');
+  db.prepare('UPDATE research SET status = ?, comment = ?, validated_at = ? WHERE id = ?').run(
+    status,
+    finalComment,
+    now(),
+    researchId,
+  );
+  insertSystemMessage(
+    gameId,
+    row.team_id,
+    approved ? 'Le professeur a validé la recherche.' : 'Le professeur demande de revoir la recherche.',
+  );
+  logEvent(gameId, row.team_id, row.player_id, approved ? 'research.teacher.approved' : 'research.teacher.rejected', {
+    roomId: row.room_id,
+    comment: finalComment,
+  });
+  return getResearchRow(row.team_id, row.room_id) as ResearchRow;
+}
+
+export function resetRoomProgress(
+  gameId: string,
+  teamId: string,
+  roomId: string,
+  playerName: string,
+): void {
+  const team = requireTeam(teamId);
+  if (team.game_id !== gameId) throw new Error('Équipe inconnue.');
+  const game = requireGame(gameId);
+  const scenario = scenarioForGame(game.scenario_json);
+  const roomIndex = scenario.rooms.findIndex((room) => room.id === roomId);
+  if (roomIndex === -1 || team.current_room !== roomIndex) return;
+  db.prepare('DELETE FROM progress WHERE team_id = ? AND room_id = ?').run(teamId, roomId);
+  insertSystemMessage(
+    gameId,
+    teamId,
+    `La salle s'est verrouillée : ${playerName || 'un joueur'} a quitté l'écran. Reprenez la salle.`,
+  );
+  logEvent(gameId, teamId, null, 'room.reset', { roomId, playerName });
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
 }
 
 export function reportMessage(gameId: string, playerId: string, messageId: string): ReportRow {
@@ -603,6 +800,7 @@ export function resolveReport(gameId: string, reportId: string): void {
 }
 
 export function deleteGame(gameId: string): void {
+  for (const team of getTeams(gameId)) focus.clearTeam(team.id);
   db.prepare('DELETE FROM games WHERE id = ?').run(gameId);
 }
 
@@ -655,6 +853,10 @@ export function getTeamState(
   });
   const room = team.started_at && currentRoom < scenario.rooms.length ? scenario.rooms[currentRoom] : null;
   const roomProgress = room ? progressMap[room.id] ?? emptyProgress() : null;
+  const researchRow = room ? getResearchRow(team.id, room.id) : null;
+  const researchState = room ? toResearchState(room, researchRow) : null;
+  const roomFocus = room ? focusForRoom(team.id, room, activePlayers.map((p) => p.id)) : null;
+  const session = sessionInfo(scenario, currentRoom);
   const quizAnswers = getQuizAnswers(me.id);
   const digits = scenario.rooms.map((r) => (progressMap[r.id]?.solvedAt ? r.exitCode : null));
   const messages = getTeamMessages(team.id, config.chat.history).map((m) => toPlayerMessage(m));
@@ -669,6 +871,10 @@ export function getTeamState(
       durationMinutes: scenario.durationMinutes,
       intro: scenario.intro,
       rules: scenario.rules,
+      sessionCount: scenario.sessionCount,
+      sessionTitles: scenario.sessionTitles,
+      session: session.session,
+      sessionTitle: session.sessionTitle,
     },
     team: {
       id: team.id,
@@ -700,7 +906,11 @@ export function getTeamState(
     })),
     room:
       room && roomProgress
-        ? publicRoom(room, currentRoom, roomProgress, playerClues(room, playerIndex, activePlayers.length))
+        ? publicRoom(room, currentRoom, roomProgress, playerClues(room, playerIndex, activePlayers.length), {
+            research: researchState,
+            focus: roomFocus,
+            researchApproved: researchRow?.status === 'approved',
+          })
         : null,
     final: {
       ready: scenario.rooms.every((r) => progressMap[r.id]?.solvedAt),
@@ -716,6 +926,7 @@ export function getTeamState(
       questions: quizQuestions(scenario, quizAnswers),
       score: me.quiz_score,
       finished: Boolean(me.quiz_finished_at),
+      focus: focusForQuiz(me.id),
     },
   };
 }
@@ -727,6 +938,8 @@ export function getAdminState(gameId: string, connectedIds: Set<string>): AdminS
   const players = getPlayers(gameId);
   const messages = getGameMessages(gameId, 200).map((m) => toAdminMessage(m, teams));
   const reports = getReports(gameId);
+  const researchRows = getResearchRows(gameId);
+  const researchMap = new Map(researchRows.map((row) => [`${row.team_id}:${row.room_id}`, row]));
   const allMessages = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE game_id = ?').get(gameId) as { n: number };
   const blocked = db
     .prepare("SELECT COUNT(*) AS n FROM messages WHERE game_id = ? AND status = 'blocked'")
@@ -775,6 +988,7 @@ export function getAdminState(gameId: string, connectedIds: Set<string>): AdminS
           attempts: row?.attempts ?? 0,
           hintUsed: row?.hintUsed ?? false,
           correctQuestions: row ? Object.entries(row.questions).filter(([, v]) => v.correct).map(([k]) => k) : [],
+          researchStatus: researchMap.get(`${team.id}:${room.id}`)?.status ?? null,
         };
       }),
     };
@@ -797,11 +1011,15 @@ export function getAdminState(gameId: string, connectedIds: Set<string>): AdminS
         title: scenario.title,
         subtitle: scenario.subtitle,
         durationMinutes: scenario.durationMinutes,
+        sessionCount: scenario.sessionCount,
+        sessionTitles: scenario.sessionTitles,
         rooms: scenario.rooms.map((r) => ({
           id: r.id,
           title: r.title,
           subtitle: r.subtitle,
           exitCode: r.exitCode,
+          session: r.session,
+          lock: r.lock,
         })),
         finalCode: scenario.final.code,
         finalQuiz: scenario.finalQuiz.map((q) => ({
@@ -815,6 +1033,42 @@ export function getAdminState(gameId: string, connectedIds: Set<string>): AdminS
     },
     teams: teamRows,
     messages,
+    research: researchRows.map((row) => ({
+      id: row.id,
+      teamId: row.team_id,
+      teamName: row.team_name ?? '',
+      roomId: row.room_id,
+      roomTitle: scenario.rooms.find((room) => room.id === row.room_id)?.title ?? row.room_id,
+      playerId: row.player_id,
+      playerName: row.player_name ?? '',
+      text: row.text,
+      sources: parseSources(row.sources_json),
+      status: row.status,
+      comment: row.comment,
+      verdict: parseResearchVerdict(row.verdict_json),
+      submittedAt: row.submitted_at,
+      validatedAt: row.validated_at,
+    })),
+    focus: teams
+      .filter((team) => team.started_at && !team.finished_at)
+      .map((team) => {
+        const room = scenario.rooms[team.current_room];
+        if (!room || room.lock !== 'focus') return null;
+        const teamPlayers = players.filter((player) => player.team_id === team.id && player.status === 'active');
+        const snapshot = focus.snapshot(team.id, room.id);
+        return {
+          teamId: team.id,
+          roomId: room.id,
+          roomTitle: room.title,
+          active: snapshot.active,
+          ready: snapshot.ready.map((id) => teamPlayers.find((player) => player.id === id)?.name ?? id),
+          total: teamPlayers.length,
+          lostBy: snapshot.lostBy,
+          lostAt: snapshot.lostAt,
+        } satisfies AdminFocus;
+      })
+      .filter((item): item is AdminFocus => item !== null),
+    focusEvents: getFocusEvents(gameId, scenario),
     reports: reports.map((r) => ({
       id: r.id,
       messageId: r.message_id,
@@ -886,6 +1140,28 @@ export function cleanupOldGames(): number {
   const cutoff = now() - config.retentionDays * 24 * 60 * 60 * 1000;
   const result = db.prepare('DELETE FROM games WHERE created_at < ?').run(cutoff);
   return Number(result.changes);
+}
+
+/**
+ * Supprime les parties créées avec un ancien format de scénario.
+ * Sans cela, un ancien snapshot (5 salles) ferait échouer le parseur v2 (10 salles)
+ * au moment où un joueur se reconnecte.
+ */
+export function cleanupLegacyGames(): number {
+  const rows = db.prepare('SELECT id, scenario_json FROM games').all() as unknown as Array<{
+    id: string;
+    scenario_json: string;
+  }>;
+  let removed = 0;
+  for (const row of rows) {
+    try {
+      parseScenario(JSON.parse(row.scenario_json) as unknown);
+    } catch {
+      db.prepare('DELETE FROM games WHERE id = ?').run(row.id);
+      removed += 1;
+    }
+  }
+  return removed;
 }
 
 export function logEvent(
@@ -1025,6 +1301,136 @@ function getReports(gameId: string): ReportRow[] {
        ORDER BY r.created_at DESC`,
     )
     .all(gameId) as unknown as ReportRow[];
+}
+
+function getResearchRow(teamId: string, roomId: string): ResearchRow | null {
+  return (
+    (db
+      .prepare(
+        `SELECT r.*, p.name AS player_name, t.name AS team_name
+         FROM research r
+         LEFT JOIN players p ON p.id = r.player_id
+         JOIN teams t ON t.id = r.team_id
+         WHERE r.team_id = ? AND r.room_id = ?`,
+      )
+      .get(teamId, roomId) as ResearchRow | undefined) ?? null
+  );
+}
+
+function getResearchRows(gameId: string): ResearchRow[] {
+  return db
+    .prepare(
+      `SELECT r.*, p.name AS player_name, t.name AS team_name
+       FROM research r
+       LEFT JOIN players p ON p.id = r.player_id
+       JOIN teams t ON t.id = r.team_id
+       WHERE r.game_id = ?
+       ORDER BY r.submitted_at DESC`,
+    )
+    .all(gameId) as unknown as ResearchRow[];
+}
+
+function parseResearchVerdict(json: string | null): ResearchVerdict | null {
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as ResearchVerdict;
+  } catch {
+    return null;
+  }
+}
+
+function toResearchState(room: ScenarioRoom, row: ResearchRow | null): ResearchState | null {
+  if (!room.research) return null;
+  const submission: ResearchSubmission | null = row
+    ? {
+        id: row.id,
+        text: row.text,
+        sources: parseSources(row.sources_json),
+        status: row.status,
+        comment: row.comment,
+        verdict: parseResearchVerdict(row.verdict_json),
+        submittedAt: row.submitted_at,
+        validatedAt: row.validated_at,
+        playerName: row.player_name ?? '',
+      }
+    : null;
+  return {
+    required: true,
+    prompt: room.research.prompt,
+    instructions: room.research.instructions,
+    minWords: room.research.minWords,
+    maxWords: room.research.maxWords,
+    sourcesRequired: room.research.sourcesRequired,
+    resources: room.research.resources,
+    submission,
+  };
+}
+
+function focusForRoom(teamId: string, room: ScenarioRoom, activePlayerIds: string[]): FocusState | null {
+  if (room.lock !== 'focus') return null;
+  const snapshot = focus.snapshot(teamId, room.id);
+  return { ...snapshot, total: activePlayerIds.length };
+}
+
+function focusForQuiz(playerId: string): FocusState {
+  const snapshot = focus.snapshot(`quiz:${playerId}`, 'quiz');
+  return { ...snapshot, total: 1 };
+}
+
+function sessionInfo(scenario: Scenario, currentRoom: number): { session: number; sessionTitle: string } {
+  const index = clamp(currentRoom, 0, scenario.rooms.length - 1);
+  const session = scenario.rooms[index]?.session ?? 1;
+  return { session, sessionTitle: scenario.sessionTitles[session - 1] ?? '' };
+}
+
+function parseSources(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function getFocusEvents(gameId: string, scenario: Scenario): FocusEvent[] {
+  const rows = db
+    .prepare(
+      `SELECT e.*, t.name AS team_name, p.name AS player_name
+       FROM events e
+       LEFT JOIN teams t ON t.id = e.team_id
+       LEFT JOIN players p ON p.id = e.player_id
+       WHERE e.game_id = ? AND e.type = 'focus.lost'
+       ORDER BY e.created_at DESC LIMIT 20`,
+    )
+    .all(gameId) as unknown as Array<{
+    id: string;
+    team_id: string | null;
+    player_id: string | null;
+    payload_json: string | null;
+    created_at: number;
+    team_name: string | null;
+    player_name: string | null;
+  }>;
+  return rows.map((row) => {
+    let roomId = '';
+    try {
+      const payload = row.payload_json ? (JSON.parse(row.payload_json) as { roomId?: string }) : {};
+      roomId = payload.roomId ?? '';
+    } catch {
+      roomId = '';
+    }
+    const room = scenario.rooms.find((item) => item.id === roomId);
+    return {
+      id: row.id,
+      teamId: row.team_id ?? '',
+      teamName: row.team_name ?? '',
+      playerName: row.player_name ?? '',
+      roomId,
+      roomTitle: room?.title ?? '',
+      at: row.created_at,
+    };
+  });
 }
 
 function getOrCreateProgress(teamId: string, roomId: string): RoomProgress {
