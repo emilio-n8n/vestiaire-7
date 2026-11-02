@@ -12,17 +12,18 @@ Le backend est **100 % local** : Node, Express, Socket.IO et SQLite. Pas de Supa
 
 - **Node.js 24 ou plus** (`brew install node@24` sur Mac, ou [nodejs.org](https://nodejs.org)).
 - **cloudflared** pour le lien public. Le script propose de l’installer avec Homebrew si tu l’as.
+- Pour cloner le dépôt privé : **gh** (`brew install gh`) ou un PAT GitHub.
 - Une connexion internet pour le tunnel et Jev.
 
 ### Une seule commande
 
 ```bash
-git clone <url-du-depot> handball
+gh repo clone emilio-n8n/vestiaire-7 handball
 cd handball
 ./start.sh
 ```
 
-> Si le dépôt n’est pas encore sur GitHub, copie le dossier sur le Mac mini puis lance `./start.sh` dedans.
+> Le dépôt est **privé**. Sur le Mac mini, connecte `gh` (`gh auth login`) ou clone avec un PAT GitHub. Si `gh` n’est pas installé : `brew install gh`. Le `.env`, la base `data/` et le tunnel ne sont jamais dans le dépôt.
 
 Le script :
 
